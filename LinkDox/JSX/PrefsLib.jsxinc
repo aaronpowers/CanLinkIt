@@ -1,0 +1,139 @@
+﻿/**
+To avoid redundant and slow loading, we assume that your local file has these includes in it (when you include this file):
+#include "XMLLib.jsxinc"
+#include "Logging.jsxinc"
+**/
+#target photoshop
+
+function LDPrefs(file) {
+	if (file==undefined)
+		this.prefsFile = new File(app.preferencesFolder+"/CanLinkIt.prefs");
+	else
+		this.prefsFile=file;
+	logIt("Prefs file is at: "+this.prefsFile.fsName);
+	this.loadPrefs();
+}
+
+LDPrefs.prototype.getPrefsFileText = function() {
+	if (!this.prefsFile.exists) {
+		// nothing to read.
+		return null;
+	}
+	this.prefsFile.open("r");
+	var text = this.prefsFile.read();
+	this.prefsFile.close();
+	return text;
+}
+
+LDPrefs.prototype.loadPrefs = function() {
+	this.names=new Array();
+	this.hash = {};
+	var contents = this.getPrefsFileText();
+	if (contents==null)
+		return; // nothing to load
+	if (contents.indexOf("<object>")!=0) {
+		logIt("LDPrefs.loadPrefs(): This prefs file is malformed, it does not start with <object> so there's nothing we can load.");
+		return;
+	}	
+	
+	var xml = new XML(contents);
+	//logIt("xml="+xml);
+	//logIt("xml.property="+xml.property);
+	//logIt("xml.property.length="+xml.property.length());
+	for (var i=0; xml.property.length(); i++) {
+		var prop = xml.property[i];
+		if (prop==null)
+			return prop;
+		var id = prop.@id.toString();
+		var value = null;
+		// Parse it:
+		if (prop.string!=undefined) {
+			//logIt("prop="+prop+", String (value)="+prop.string+", name="+prop.@id);
+			value = prop.string.toString();
+		} else if (prop.date!=undefined) {
+			value = prop.date.toString();
+			if (value!=null && value.length>0)
+				value = new Date(value);
+				value.setMilliseconds(0);
+		}
+		// TODO right now we only support string and date values here. We should support more!
+		
+		// Save it:
+		this.names[this.names.length]=id;
+		this.hash[id]=value;
+
+		
+	}
+	
+}
+
+LDPrefs.prototype.savePrefs = function() {
+	//logIt("savePrefs 1");
+	var xml = "<object>";
+	for (var i=0; i<this.names.length; i++) {
+		//logIt("savePrefs i="+i);
+		//logIt("\tname="+this.names[i]+", value="+this.hash[this.names[i]]);
+		
+		xml+=convertToXML(this.hash[this.names[i]],this.names[i]);
+		
+	}
+	xml+="</object>";
+	//logIt("Saving: "+xml);
+	this.prefsFile.open("w");
+	this.prefsFile.write(xml);
+	this.prefsFile.close();
+}
+
+LDPrefs.prototype.get = function(name) {
+	return this.hash[name];
+}
+
+LDPrefs.prototype.getAsXML = function(name) {
+	//logIt("getAsXML("+name+") start");
+	var value = this.hash[name];
+	var xml = null;
+	if (value==undefined) {
+		xml = getXMLObject(name, "");
+		logIt("LDPrefs.getAsXML("+name+"): xml="+xml);
+		return xml;
+	}
+	xml = getXMLObject(name, this.hash[name]);
+	logIt("LDPrefs.getAsXML("+name+"): xml="+xml);
+	return xml;
+}
+
+/**************
+	* setToNow
+	* This is most useful from Flash, because it's very difficult to pass a date from flash to JSX (it fails whenever I tried it). This means we can quickly set a date.
+	* BTW, dates do come back from this XML just fine, it's the setting part that's hard.
+	*/
+LDPrefs.prototype.setToNow = function(name) {
+	this.set(name, new Date());
+}
+
+LDPrefs.prototype.set = function(name, value) {
+	//logIt("set("+name+","+value+"): type is "+typeof value);
+	if (this.hash[name]==undefined) {
+		//logIt("set("+name+","+value+"): new preference. prev length of prefs="+this.names.length);
+		this.names[this.names.length]=name;
+		//logIt("set("+name+","+value+"): after length of prefs="+this.names.length);
+	} else {
+		//logIt("set("+name+","+value+"): writing over an old preference");
+	}
+	this.hash[name]=value;
+	
+	//logIt("set("+name+","+value+"): going to save:");
+	
+	this.savePrefs();	
+	//logIt("set("+name+","+value+"): done (saved)");
+}
+
+LDPrefs.prototype.printPrefs = function() {
+	logIt("printing preferences items of length "+this.names.length);
+
+	for (var i=0; i<this.names.length; i++) {
+		logIt(this.names[i]+"="+this.hash[this.names[i]]);
+	}
+	logIt("done printing preferences");
+}
+

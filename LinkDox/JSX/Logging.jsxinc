@@ -1,0 +1,105 @@
+﻿/*********************************************
+Copyright 2011 Aaron Powers
+All Rights Reserved
+*/
+/**
+ * Logging library. Include this to use it.
+ */
+
+var loggingOn=true;
+/*If you want to keep the log file small, set this to true. If you want to keep the file around forever with all past logs, set it to false.*/
+var deleteLogEachLaunch=true;
+
+
+/*//////////////////////////////////////////////////////////////////////////////
+// Object: Logger
+// Usage: Log information to a text file
+// Input: String to full path of file to create or append, if no file is given
+//        then output file Logger.log is created on the users desktop
+// Return: Logger object
+// Example:
+//
+//   var a = new Logger();
+//   a.print( 'hello' );
+//   a.print( 'hello2\n\n\nHi\n' ) ;
+//   a.remove();
+//   a.log( Date() );
+//   a.print( Date() );
+//   a.display();
+//
+//////////////////////////////////////////////////////////////////////////////*/
+
+var DefaultLogFile = new File(/* Folder.desktop*/Folder.temp + "/CanLinkIt.log" );
+
+Logger = function ( inFile ) {
+	// member properties
+	// the file we are currently logging to
+	if ( inFile == undefined) {
+		this.file = DefaultLogFile;
+	} else {
+		this.file = new File( inFile );
+	}
+	//alert("Log file: "+this.file.fsName);
+	if (deleteLogEachLaunch && this.file.exists)
+		this.file.remove();
+		
+	
+	// member methods
+	// output to the ESTK console
+	// note that it behaves a bit differently 
+	// when using the BridgeTalk section
+	this.print = function( inMessage ) { 
+		if ( app.name == "ExtendScript Toolkit" ) {
+			print (inMessage);
+		} else {
+			var btMessage = new BridgeTalk();
+			btMessage.target = "estoolkit";
+			btMessage.body = "print(" + inMessage.toSource() + ")";
+			btMessage.send ();
+		}
+	}
+	// write out a message to the log file
+	this.log = function( inMessage ) {
+		if ( this.file.exists ) {
+			this.file.open( 'e' );
+			this.file.seek( 0, 2 ); // end of file
+		} else {
+			this.file.open( 'w' );
+		}
+		this.file.write( inMessage );
+		this.file.close();
+	}
+	// show the contents with the execute method
+	this.display = function() {
+		this.file.execute();
+	}
+	// remove the file
+	this.remove = function() {
+		this.file.remove();
+	}
+
+}
+
+var logger = null;
+
+function logIt( inMessage ) {
+	if (!loggingOn)
+		return; // allows us to turn off the log for our end users
+	try {
+		if (logger==null)
+			logger = new Logger();
+		var b = decodeURIComponent( inMessage );
+		logger.log(new Date()+"\t");
+		logger.log( b +"\n");
+	}
+	catch(e) {
+		alert(e + ":" + e.line);
+	}
+}
+
+function deleteLogFile() {
+	if (DefaultLogFile.exists)
+		DefaultLogFile.remove();
+}
+
+ 

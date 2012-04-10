@@ -1,0 +1,314 @@
+﻿/***************************************************
+	* EditedSOHelper.jsxinc
+	* This file contains a helper class to help out with the action of a user editing a Smart Object. It's complex enough it justifies a class of its own.
+	*
+	* This must be included from CanLinkIt.jsx. It depends on CanLinkIt... Create it by calling:
+	*	new EditedSOHelper(canLinkIt);
+	*/
+#target photoshop
+
+
+
+
+/*********
+	* EditedSOHelper is our main class in this file, it's the helper that can do this action.
+	*/
+
+function EditedSOHelper(canLinkIt) {
+	this.canLinkIt=canLinkIt;
+}
+
+/*Simple class EditedSO to track what SOs have been edited*/
+function EditedSO() {
+	this.destinationDocument=null;
+	this.destinationLayer=null;
+	this.sourceFile=null;
+}
+
+EditedSO.prototype.toString = function() {
+	return "[Object type EditedSO\n"+
+	"destinationDocument="+this.destinationDocument+"\n"+
+	"destinationLayer="+this.destinationLayer+"\n"+
+	"sourceFile="+this.sourceFile+
+	"]";
+}
+
+function objectsAreCertainlyUnequal(first, second) {
+	if (first==second)
+		return false; // certainly equal!
+	if (first==null || second==null)
+		return true; // one is non-null, they're certainly unequal
+	return null; // unknown.
+}
+
+EditedSO.prototype.equals = function(another) {
+	if (another==undefined || another==null)
+		return false; // because this one is defined.
+	// Check the class name
+	if (getClassName(this)!=getClassName(another))
+		return false;
+	/*if (another.destinationDocument==undefined ||
+		another.destinationDocument.fullName==undefined ||
+		another.destinationDocument.fullName.toString==undefined ||		
+		another.destinationLayer==undefined ||
+		another.soureFile==undefined ||
+		another.soureFile.toString==undefined
+		)
+		return false; // because they have to be defined, they're defined in the constructor. The type probably isn't our type.*/
+	/*var certainlyUnequal = objectsAreCertainlyUnequal(this.destinationDocument, another.destinationDocument);
+	if (certainlyUnequal)
+		return false;
+	if (!certainlyUnequal) {
+		// they're certainly equal
+	} else {
+		// test the inner information
+		certainlyUnequal = objectsAreCertainlyUnequal(this.destinationDocument.fullName, another.destinationDocument.fullName);
+		if (certainlyUnequal)
+			return false;
+		if (!certainlyUnequal) {
+			// they're certainly equal
+		} else {
+			// test the information
+			if (objectsAreCertainlyUnequal(this.destinationDocument.fullName, another.destinationDocument.fullName))
+			return false;
+		else if (this.destinationDocument.fullName.toString()!=another.destinationDocument.fullName.toString())
+			return false;
+	}
+	if (this.destinationLayer!=another.destinationLayer) {
+		// really, it should be an exact match...
+		return false;
+	}*/
+	if (this.destinationDocument!=another.destinationDocument)
+		return false;
+	if (this.destinationLayer!=another.destinationLayer)
+		return false;
+	if (this.sourceFile==another.sourceFile) {
+		// good, they could both be null
+	} else if (objectsAreCertainlyUnequal(this.sourceFile, another.sourceFile))
+		return false;
+	else if (this.sourceFile.toString()!=another.sourceFile.toString())
+		return false;
+	// it looks like the same one!
+	return true;
+}
+
+// Class variables
+EditedSOHelper.prototype.numDocsBeforeEditSO=0;
+EditedSOHelper.prototype.editDocumentToOpen=null;
+EditedSOHelper.prototype.lastSelectedLayer=null;
+EditedSOHelper.prototype.edited=new Array();/*of EditedSO*/
+
+// For debugging purposes, we allow automated answering of the "confirm" prompt to the user. By default it's null which means no automatic answer. Set it to a boolean value to not ask the user and act with the return value you set.
+EditedSOHelper.prototype.debug_autoAnswerConfirm=null;
+
+
+EditedSOHelper.prototype.getEditItem = function(destinationDocument) {
+	for (var i=0; i<this.edited.length; i++) {
+		if (this.edited[i].destinationDocument==undefined) {
+				// remove this element.
+				this.edited.splice(i,1);
+				i--;
+		} else if (this.edited[i].destinationDocument==destinationDocument)
+			return this.edited[i];
+	}
+	return null;
+}
+
+/**********
+	* getEditItemsLinkedTo(sourceDocument)
+	* Arguments: Pass in the source document, e.g. the document that you think something might be linked to.
+	* Returns: an Array containing a list of EditedSO describing any links that are pointing to this document.
+	*
+	*/
+EditedSOHelper.prototype.getEditItemsLinkedTo = function(sourceDocument/*type Document*/) {
+	var editItems = new Array();/*of EditedSO*/
+	for (var i=0; i<this.edited.length; i++) {
+		if (this.edited[i].sourceFile.toString()==sourceDocument.fullName.toString()) {
+			// If the document is undefined, then it was closed at some point and we should remove it from our list.
+			if (this.edited[i].destinationDocument==undefined) {
+				// remove this element.
+				this.edited.splice(i,1);
+				i--;
+			} else 
+				editItems.push(this.edited[i]);
+		}
+	}
+	return editItems;
+}
+
+/***************
+	* userEditedSO
+	*
+	* Call this when we get notice that the user just started to edit a smart layer, such as double-clicking it or right-click "Edit Contents".
+	* Let's warn them that this isn't a good one to edit, because they should be editing the source, and help them do just that.
+	*
+	* Assumptions: The last selected layer is the smart layer that was edited. This always seems to be true but it's not necessarily so (if Photoshop code changes, this order could change or it might not be required to select before opening. Hopefully that will never be the case).
+	* 
+	* Input: None
+	* Output: Boolean: True means we need to call userJustEditedAPlacedSmartObjectLayerPart2 in 1 second, and false means we don't. (This is because we haven't found any way to do a Timer or setTimeout() or the like in ExtendScript.)
+	*/
+EditedSOHelper.prototype.userEditedSO = function() {
+	//logIt("EditedSOHelper.userJustEditedAPlacedSmartObjectLayer(): Starting...");
+	// Thanks to getLayerInfo, the last selected layer is going to be stored in lastSelectedLayer.
+	// Note that due to photoshop, at the time of this method call, we're still getting information from the old layer... But we don't want to rely on that.
+	// Note that right now, we're relying on that.
+	// So far the last selected layer has always been accurate
+	//lastSelectedLayer
+	if (this.lastSelectedLayer==null) {
+		logIt("EditedSOHelper.userJustEditedAPlacedSmartObjectLayer(): Error! There should be some last selected layer at this point, but there is none.");
+		return false;
+	}
+	var xml = canLinkIt.getLayerInfo(activeDocument, this.lastSelectedLayer);
+	if (xml==null)
+		// TODO This is a bug.
+		return getXMLObject("boolean",false);
+	if (xml.indexOf("<property id=\"hasLink\"><true/>")==-1) {
+		logIt("EditedSOHelper.userJustEditedAPlacedSmartObjectLayer(): original layer doesn't have a link.");
+		return false;
+	}
+	// The age old question... What should we do if it has a link but it's invalid? I think we ask anyways and hope to get an updated version.
+	/*if (xml.indexOf("<property id=\"isValid\"><true/>") {
+	}*/
+	var xmp = canLinkIt.xmpHelper.getXMPFrom(this.lastSelectedLayer);
+	
+	var linkedFile = canLinkIt.getFileFromXMP(xmp, true);
+	if (linkedFile==null) {
+		logIt("EditedSOHelper.userJustEditedAPlacedSmartObjectLayer(): Error! There was no linked file even though the original layer has a link...");
+		return false;
+	}
+
+	var editTheOriginal;
+	if (this.debug_autoAnswerConfirm==null)
+		editTheOriginal= confirm("This smart object has a linked file attached.\n"+
+		"Do you want to edit the original file?\n"+
+		"\n"+
+		"Original File: "+linkedFile.toString());
+	else
+		// Don't ask the user if we're debugging and want to skip the prompt:
+		editTheOriginal=this.debug_autoAnswerConfirm;
+	if (!editTheOriginal)
+		return false;
+	//alert("TODO Close this new one and edit the original here. The current document's name is: "+app.activeDocument.name);
+	// Note that at this time the current document is still our original... Somehow we're going to have to close the new one in a few moments. Perhaps we set a timer to wait, close it, and then open the original?
+	this.numDocsBeforeEditSO=app.documents.length;
+	//logIt("EditedSOHelper.userJustEditedAPlacedSmartObjectLayer: a: "+this.numDocsBeforeEditSO);
+	this.editDocumentToOpen=linkedFile;
+	//var xml = getXMLObject("boolean",true);
+	logIt("EditedSOHelper.userJustEditedAPlacedSmartObjectLayer(): Found the link and the user's planning to edit it");
+
+	// Track it, in case the user edits it again:
+	/*this.editedSODocument.push(activeDocument);
+	this.editedSOLayer.push(activeDocument.activeLayer);
+	this.editedSOSourceDocument.push(this.editDocumentToOpen); // this will be replaced, but we do this to avoid any chance of synchronization errors that would unsync the array.*/
+	var editInfo = new EditedSO();
+	editInfo.destinationDocument=activeDocument;
+	editInfo.destinationLayer=activeDocument.activeLayer; // yes, this can change before we get the chance to update it, so we have to store it separately.
+	editInfo.sourceFile=linkedFile; // we don't know the actual document yet, so we'll just save the file name.
+	this.edited.push(editInfo); // save it for later.
+
+	return true;
+}
+
+EditedSOHelper.prototype.userEditedSOXML = function() {
+	return getXMLObject("boolean",this.userEditedSO());
+}
+
+EditedSOHelper.prototype.userEditedSOPartB = function() {
+	try {
+		//logIt("EditedSOHelper.userJustEditedAPlacedSmartObjectLayerPart2: Starting");
+		//logIt("EditedSOHelper.userJustEditedAPlacedSmartObjectLayerPart2: b: "+this.numDocsBeforeEditSO);
+		if (app.documents.length==this.numDocsBeforeEditSO) {
+			// We didn't wait long enough. We need to wait longer.
+			logIt("EditedSOHelper.userJustEditedAPlacedSmartObjectLayerPart2: the new file hasn't been opened yet... continuing to wait...");
+			return getXMLObject("boolean",false);
+		}
+		//logIt("EditedSOHelper.userJustEditedAPlacedSmartObjectLayerPart2: 1");
+		app.documents[this.numDocsBeforeEditSO].close();
+		//logIt("EditedSOHelper.userJustEditedAPlacedSmartObjectLayerPart2: 2");
+		// open the file
+		app.open(this.editDocumentToOpen);
+		// TODO maybe we want to listen around for a save of this file... so that we can update the original automatically?
+		//logIt("EditedSOHelper.userJustEditedAPlacedSmartObjectLayerPart2: successful!");
+		return getXMLObject("boolean",true);
+	} catch (e) {
+		logIt("EditedSOHelper.userJustEditedAPlacedSmartObjectLayerPart2: Error: "+e.toString());
+	}
+}
+
+/*************************************
+	* EditedSOHelper.notifySaved()
+	* Call this after a document has been saved.
+	* This will check to see if anything is open that needs to be updated based on this save.
+	* Arguments: None
+	* Returns: true if something was updated, false if nothing was updated.
+	*
+	*/
+EditedSOHelper.prototype.notifySaved = function() {
+	try {
+		logIt("EditedSOHelper.notifySaved: 1");
+		// Step 1: Check if the saved document (the current document) was one of our source documents.
+		// Note that there is no "Save All" command in Photoshop, so the activeDocument is the one that was saved -- that makes things easier.
+		var items = this.getEditItemsLinkedTo(activeDocument);
+		var sourceFile = activeDocument.fullName;
+		logIt("EditedSOHelper.notifySaved: 2");
+
+		if (items==null || items.length==0)
+			return false;
+			
+		var updatedSomething = false;
+		// Step 2: Yes, it was one or more of our source documents for some open file. Let's save the activeDocument so we can reselect it later easily.
+		var lastSelectedDocument = activeDocument;
+		logIt("EditedSOHelper.notifySaved: 3");
+
+		for (var i=0; i<items.length; i++) {
+			logIt("EditedSOHelper.notifySaved: 4 item "+i);
+			// Step 3: Select the destination document and layer
+			activeDocument = items[i].destinationDocument;
+			logIt("EditedSOHelper.notifySaved: 4.1");
+
+			// We want to preserve the user's original layer selection as best as possible:
+			//var originalActiveLayer = activeDocument.activeLayer;
+			logIt("EditedSOHelper.notifySaved: 4.2");
+			// The next line fails on the second try... perhaps the original one no longer exists?
+			//activeDocument.activeLayer=items[i].destinationLayer;
+			logIt("EditedSOHelper.notifySaved: 4.3");
+		
+			// Step 4: Update the target layers. We're being aggressive here -- updating all layers that might have been linked.
+			//There was a bug with updating just the one, so we might as well update all and be more aggressive anyways (one user had suggested generally more aggressive updating).
+			//It seems unlikely that a user would want to update one instance of a link in a file but not update others...
+			if (this.canLinkIt.updateAnyLayersLinkedTo(sourceFile)) {
+				updatedSomething=true;
+			}
+			/*if (this.canLinkIt.updateSelected()) {
+				updatedSomething=true;
+				// If it got updated, the original layer no longer really exists. We're going to have to update our link in case the user does it all over again we have to find the newly updated layer.
+				//items[i].destinationLayer=activeDocument.activeLayer;
+			}*/
+			// Step 5: Re-select the original selected layer
+			logIt("EditedSOHelper.notifySaved: 4.4");
+			//activeDocument.activeLayer=originalActiveLayer;
+		}
+		logIt("EditedSOHelper.notifySaved: 5");
+
+		// Step 6: Re-select the source document that was saved.
+		activeDocument=lastSelectedDocument;
+		// And we're done!
+		logIt("EditedSOHelper.notifySaved: done: "+updatedSomething);
+		return updatedSomething;
+	} catch (e) {
+		logIt(e);
+		if (typeof BREAK_ON_UNEXPECTED!= "undefined") $.bp();
+		return false;
+	}
+
+}
+
+EditedSOHelper.prototype.toString = function() {
+	var value = "Class EditedSOHelper: \n"+
+	// Class variables
+	"numDocsBeforEditSO="+this.numDocsBeforeEditSO+"\n"+
+	"editDocumentToOpen="+this.editDocumentToOpen+"\n"+
+	"lastSelectedLayer="+this.lastSelectedLayer+"\n"+
+	"edited.length="+this.edited.length+"\n";
+	return value;	
+}

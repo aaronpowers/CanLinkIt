@@ -1,0 +1,76 @@
+﻿/******************************
+	* TestFiles.jsxinc
+	* Some variables for test files
+	*
+	*
+	*/
+
+// Some of these vars are used for the files:
+#include "DeveloperVariables.jsx"
+/**************************************
+	* Define the variables below
+	*/
+var originalRootPath = "/c/Dropbox/AllDocuments/EntrepreneurshipAndIdeas/LinkDox/";
+//var rootPath = "/c/Dropbox/AllDocuments/EntrepreneurshipAndIdeas/LinkDox/";
+var endOfPath = "FlashBuilderProject/TestFiles/"
+var testPathFolder1Assembled = rootPath+endOfPath+"Files/Folder1/AssembledFiles/";
+var testAssembledFileNameOnly="AssembledFile1.psd";
+var testAssembledFile2NameOnly="AssembledFile2.psd";
+var testAssembledFile3NameOnly="AssembledFile3.psd";
+var testAssembledFile1 = new File(testPathFolder1Assembled+testAssembledFileNameOnly);
+var testAssembledFile2 = new File(testPathFolder1Assembled+testAssembledFile2NameOnly);
+var testAssembledFile3 = new File(testPathFolder1Assembled+testAssembledFile3NameOnly);
+
+var testEmptyFile = new File(rootPath+endOfPath+"Files/Folder1/EmptyFile.psd");
+var testResizedFile = new File(rootPath+endOfPath+"Files/Folder1/SmallSizeLinkedToLoremIpsum.psd");
+var testResizedFile2 = new File(rootPath+endOfPath+"Files/Folder1/LargeSizeLinkedToLoremIpsum.psd");
+var testResizedFile3 = new File(rootPath+endOfPath+"Files/Folder1/LargeSizeLinkedToLoremIpsumTrimmed.psd");
+var testLinkToFile = new File(rootPath+endOfPath+"Files/Folder2/LinkToThese/BorderImageExample2.psd");
+
+var testFileWithLotsOfLayers = new File(rootPath+endOfPath+"Files/FileWithTonsOfLayers.psd");
+var testFileWithLotsOfLayersAndLinks = new File(rootPath+endOfPath+"Files/FileWithManyLayersAndLinks.psd");
+
+
+var testPathMoveToFolderName="FilesMoved"
+var testMovedDestinationFileNameOnly = "MovedDestination.psd";
+var testMovedDestinationFile = new File(rootPath+endOfPath+testPathMoveToFolderName+"/"+testMovedDestinationFileNameOnly);
+
+/********************
+	* closeAllDocuments()
+	* Before starting a test, you may want to close all documents. This will avoid asking about saving any test documents, so that it can be run again and again.
+	*
+	*/
+function closeAllDocuments() {
+		try {
+		if (app.documents.length>0) {
+				var closeAll = confirm("Before this unit test can run, all open documents must be closed. May I close all documents?");
+				if (!closeAll) {
+					confirm("Okay. Testing cancelled.");
+					return; // cancelling script.
+				}
+			var numDocs = app.documents.length;
+			while (app.documents.length>0) {
+				try {
+					var f = app.activeDocument.path;
+					if (app.activeDocument.path.toString().indexOf(endOfPath)>0)
+						// it's one of our files, in one of our directories, so we don't want to save it!
+						app.activeDocument.close(SaveOptions.DONOTSAVECHANGES);
+					else
+						app.activeDocument.close(SaveOptions.PROMPTTOSAVECHANGES);
+				} catch (e) {
+					// its' an error because the document has not yet been saved.
+					app.activeDocument.close(SaveOptions.PROMPTTOSAVECHANGES);				
+				}
+				if (numDocs==app.documents.length) {
+					// user cancelled, we cancel.
+					confirm("Okay. Testing cancelled.");
+					return;
+				}
+				numDocs--;
+			}
+		}
+	} catch (e) {
+		alert("Uncaught Error Message in TestFiles.jsx/closeAllDocuments(): "+e);
+		if (typeof BREAK_ON_UNEXPECTED!= "undefined") $.bp();
+	}
+}

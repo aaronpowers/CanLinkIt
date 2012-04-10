@@ -1,0 +1,239 @@
+﻿/*********************************************
+
+Copyright 2012 Aaron Powers
+All Rights Reserved
+*/
+
+#target photoshop
+
+/************************************************************************************************************
+General Photoshop Helper Functions
+    **/
+
+function PsdLib() {
+}
+
+/*//////////////////////////////////////////////////////////////////////////////
+// Function: getSmartlayerFilename
+// Description: Checks the activeLayer for placed fileName 
+//                   
+// Input: 
+// Return: String- "-1" if name not found
+//////////////////////////////////////////////////////////////////////////////*/
+function getSmartlayerFilename(){
+	try {// cleaned up scriptlistner output
+		var ref = new ActionReference(); 
+		ref.putEnumerated( 1283027488, 1332896878, 1416783732 ); 
+		var smartDesc = executeActionGet
+		(ref).getObjectValue(stringIDToTypeID( "smartObject" )) 
+		return smartDesc.getString( 1181314130 );
+	} catch (e) { return "-1"; }   
+}
+
+
+/*///////////////////////////////////////////////////////////////////////////////////////////
+// Function: getSelectedLayersCount
+// Description: gets the number of selected layers  
+// Usage: 
+// Input:
+// Return: Number
+// Dependencies:
+// Notes: retruns 1 if no layer selected DOM bug?			 
+//////////////////////////////////////////////////////////////////////////////*/
+function getSelectedLayersCount(){
+	var res = new Number();
+	var ref = new ActionReference();
+	ref.putEnumerated( charIDToTypeID("Dcmn"), charIDToTypeID("Ordn"), charIDToTypeID("Trgt") );
+	var desc = executeActionGet(ref);
+	if( desc.hasKey( stringIDToTypeID( 'targetLayers' ) ) ){
+		desc = desc.getList( stringIDToTypeID( 'targetLayers' ));
+		res = desc.count 
+	}else{
+		try{
+			// how to tell if no layer is selected?
+			// this returns the top layer if no layer selected
+			 app.activeDocument.activeLayer.name;
+			res = 1;
+		}catch(e){
+			res = 0;
+		}	
+	}
+	return res;
+}
+
+/**********************************
+	* PsdLib.isMultiLayer(fileName)
+	* Pass in a file name and it will return:
+	*   true: if the file format supports multiple layers, e.g. PSD
+	*   false: if the file format supports only one layer, it's already flattened: e.g. png
+	*   null: if we don't know what format it is.
+	*/
+PsdLib.isMultiLayer = function(fileName) {
+	// Regexp is case sensitive, so to make this easier, we lowercase it.
+	fileName= fileName.toLowerCase();
+
+	// Note: A bunch of these file formats I'm not really sure whethery they have layers in them or not.
+	// FUTURE TODO: I should go through these and verify they belong where they are
+	if (fileName.match(/.+\.ai$/) 
+		|| fileName.match(/.+\.psd$/) 
+		|| fileName.match(/.+\.psb$/) 
+		|| fileName.match(/.+\.pdd$/) 
+		|| fileName.match(/.+\.eps$/) 
+		|| fileName.match(/.+\.ai3$/) 
+		|| fileName.match(/.+\.ai4$/) 
+		|| fileName.match(/.+\.ai5$/) 
+		|| fileName.match(/.+\.ai6$/) 
+		|| fileName.match(/.+\.ai7$/) 
+		|| fileName.match(/.+\.ai8$/) 
+		// The following I'm not really sure as to whether they open as single layer or multi layer:
+		|| fileName.match(/.+\.ps$/) 
+		|| fileName.match(/.+\.epsf$/) 
+		|| fileName.match(/.+\.epsp$/) 
+		|| fileName.match(/.+\.pdf$/) 
+		|| fileName.match(/.+\.pdp$/)
+		) {
+		return true;
+	}
+
+	if (fileName.match(/.+\.png$/) 
+		|| fileName.match(/.+\.jpg$/) 
+		|| fileName.match(/.+\.jpeg$/)
+		|| fileName.match(/.+\.jpe$/) 
+		|| fileName.match(/.+\.jpf$/) 
+		|| fileName.match(/.+\.jpx$/) 
+		|| fileName.match(/.+\.jp2$/) 
+		|| fileName.match(/.+\.j2c$/) 
+		|| fileName.match(/.+\.j2k$/) 
+		|| fileName.match(/.+\.jpc$/) 
+		|| fileName.match(/.+\.gif$/) 
+		|| fileName.match(/.+\.bmp$/) 
+		|| fileName.match(/.+\.rle$/) 
+		|| fileName.match(/.+\.dib$/) 
+		|| fileName.match(/.+\.tif$/) 
+		|| fileName.match(/.+\.tiff$/) 
+		|| fileName.match(/.+\.pct$/) 
+		|| fileName.match(/.+\.pict$/) 
+		|| fileName.match(/.+\.pbm$/) 
+		|| fileName.match(/.+\.pgm$/) 
+		|| fileName.match(/.+\.ppm$/) 
+		|| fileName.match(/.+\.pnm$/) 
+		|| fileName.match(/.+\.pfm$/) 
+		|| fileName.match(/.+\.pam$/) 
+		// The following I'm not really sure as to whether they open as single layer or multi layer:
+		|| fileName.match(/.+\.crw$/) 
+		|| fileName.match(/.+\.nef$/) 
+		|| fileName.match(/.+\.raf$/) 
+		|| fileName.match(/.+\.orf$/) 
+		|| fileName.match(/.+\.mrw$/) 
+		|| fileName.match(/.+\.dcr$/) 
+		|| fileName.match(/.+\.mos$/) 
+		|| fileName.match(/.+\.raw$/) 
+		|| fileName.match(/.+\.pef$/) 
+		|| fileName.match(/.+\.srf$/) 
+		|| fileName.match(/.+\.dng$/) 
+		|| fileName.match(/.+\.dng$/) 
+		|| fileName.match(/.+\.x3f$/) 
+		|| fileName.match(/.+\.cr2$/) 
+		|| fileName.match(/.+\.erf$/) 
+		|| fileName.match(/.+\.sr2$/) 
+		|| fileName.match(/.+\.kdc$/) 
+		|| fileName.match(/.+\.mfw$/) 
+		|| fileName.match(/.+\.mef$/) 
+		|| fileName.match(/.+\.arw$/) 
+		|| fileName.match(/.+\.nwr$/) 
+		|| fileName.match(/.+\.rw2$/) 
+		|| fileName.match(/.+\.rwl$/) 
+		|| fileName.match(/.+\.iiq$/) 
+		|| fileName.match(/.+\.3fr$/) 
+		|| fileName.match(/.+\.cin$/) 
+		|| fileName.match(/.+\.sdpx$/) 
+		|| fileName.match(/.+\.dpx$/) 
+		|| fileName.match(/.+\.fido$/) 
+		|| fileName.match(/.+\.iff$/) 
+		|| fileName.match(/.+\.tdi$/) 
+		|| fileName.match(/.+\.exr$/) 
+		|| fileName.match(/.+\.pcx$/) 
+		|| fileName.match(/.+\.pxr$/) 
+		|| fileName.match(/.+\.hdr$/) 
+		|| fileName.match(/.+\.rgbe$/) 
+		|| fileName.match(/.+\.xyze$/) 
+		|| fileName.match(/.+\.sct$/) 
+		|| fileName.match(/.+\.tga$/) 
+		|| fileName.match(/.+\.vda$/) 
+		|| fileName.match(/.+\.icb$/) 
+		|| fileName.match(/.+\.vst$/) 
+		|| fileName.match(/.+\.wbm$/) 
+		|| fileName.match(/.+\.wbmp$/) 
+		) {
+		return false;
+	}
+	return null;
+}
+
+/**************************************
+	* findPhotoshopEventIDs
+	* Description: gets runtime integers for stringIDs for use in Flex  eventhandlers  
+	* Returns: XML
+	*/
+function findPhotoshopEventIDs(){
+	var xml = "<object>";
+	xml += convertToXML( stringIDToTypeID( "newPlacedLayer" ).toString(), "newPlacedLayer" );// convert	
+	xml += convertToXML( stringIDToTypeID( "placedLayerEditContents" ).toString(), "placedLayerEditContents" ); // user has edited a placed layer
+	xml += convertToXML( stringIDToTypeID( "placedLayerReplaceContents" ).toString() , "placedLayerReplaceContents" );
+	xml += convertToXML( stringIDToTypeID( "placedLayerMakeCopy" ).toString(), "placedLayerMakeCopy" );// new via copy
+	xml += "</object>";
+	return xml;
+}
+
+function getVersion() {
+	var xml = "<object>";
+	xml += convertToXML(app.version, "version");
+	xml += "</object>"
+	return xml;
+}
+
+PsdLib.prototype.makeActiveByIndex = function(index, forceVisible) {
+	try {
+		var desc = new ActionDescriptor();
+		var ref = new ActionReference();
+		ref.putIndex(charIDToTypeID( "Lyr " ), index)
+		desc.putReference( charIDToTypeID( "null" ), ref );
+		desc.putBoolean( charIDToTypeID( "MkVs" ), forceVisible );
+		executeAction( charIDToTypeID( "slct" ), desc, DialogModes.NO );
+	} catch(e) {
+		logIt("PsdLib.makeActiveByIndex: index="+index+", could not make active due to Error:"+e.toString());
+		return -1;
+	}
+};
+
+PsdLib.prototype.getNumberOfLayers = function() {
+	// Ask photoshop how many layers there are in the document:
+	var ref = new ActionReference(); 
+	ref.putEnumerated( charIDToTypeID("Dcmn"), charIDToTypeID("Ordn"), charIDToTypeID("Trgt") ); 
+	var desc = executeActionGet(ref);
+	return desc.getInteger(charIDToTypeID("NmbL")); 
+}
+
+PsdLib.prototype.isValidActiveLayer = function(index) {
+	var propName = stringIDToTypeID( 'layerSection' );// can't replace
+	var ref = new ActionReference(); 
+	ref.putProperty( 1349677170 , propName);// TypeID for "Prpr"
+	// 'Lyr ", index
+	ref.putIndex( 1283027488, index );
+	var desc =  executeActionGet( ref );
+	var type = desc.getEnumerationValue( propName );
+	var res = typeIDToStringID( type ); 
+	return res == 'layerSectionEnd' ? false:true;
+};
+
+
+PsdLib.isDocumentStillOpen = function(docRef) {
+	try {
+		docRef.layers;
+		return true;
+	} catch (e) {
+		// If it's closed, it would through a "ReferenceError: Object is invalid" at the above line. If you want to see it in the JavaScript console, uncomment the following line.
+		//$.writeln("e="+e);
+		return false;
+	}
+}

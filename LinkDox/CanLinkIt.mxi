@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<macromedia-extension
+	name="CanLinkIt"
+	version="1.0.8"
+	mxiversion="5.0"
+	xmanversion="5.0"
+	icon="icon.png"
+	requires-restart="true"
+	type="suite">
+<author name="Aaron Powers" />
+<products>
+<product familyname="Photoshop" version="11" primary="true" />
+<product familyname="Photoshop" version="12" primary="true" />
+</products>
+<description href="http://www.canlinkit.com/">
+<![CDATA[This extension includes a Photoshop Panel for linking documents.]]>
+</description>
+<ui-access>
+<![CDATA[Access the panel by launching Photoshop, selecting Window -> Extensions -> CanLinkIt.]]>
+</ui-access>
+<update method="directlink" url="http://www.canlinkit.com/ExtensionUpdate.xml" />
+<license-agreement>
+<![CDATA[CanLinkIt Software License Agreement<br>
+<br>
+License<br>
+THE SOFTWARE (AS DEFINED BELOW) IS PROVIDED UNDER THE TERMS OF LICENSE. THE SOFTWARE IS PROTECTED BY COPYRIGHT AND/OR OTHER APPLICABLE LAW. ANY USE OF THE WORK OTHER THAN AS AUTHORIZED UNDER THIS LICENSE OR COPYRIGHT LAW IS PROHIBITED.<br>
+BY EXERCISING ANY RIGHTS TO THE WORK PROVIDED HERE, YOU ACCEPT AND AGREE TO BE BOUND BY THE TERMS OF THIS LICENSE. TO THE EXTENT THIS LICENSE MAY BE CONSIDERED TO BE A CONTRACT, THE LICENSOR GRANTS YOU THE RIGHTS CONTAINED HERE IN CONSIDERATION OF YOUR ACCEPTANCE OF SUCH TERMS AND CONDITIONS.<br>
+<br>
+ Definitions<br>
+a.	"Licensor" means the individual, individuals, entity or entities that offers the Work under the terms of this License.<br>
+b.	"Software" means the copyrightable work of authorship offered under the terms of this License.<br>
+c.	"Licensee" means an individual or entity exercising rights under this License who has not previously violated the terms of this License with respect to the Work, or who has received express permission from the Licensor to exercise rights under this License despite a previous violation.<br>
+<br>
+Terms<br>
+1. This is an agreement between Licensor and Licensee, who is being licensed to use the named Software.<br>
+2. Licensee acknowledges that this is only a limited nonexclusive license. Licensor is and remains the owner of all titles, rights, and interests in the Software.<br>
+3. Restrictions<br>
+Licensee may not: (a) reproduce, publicly display, publicly perform, distribute, or create derivative works from the Software Deliverables; (b) provide third parties with access to the Software Deliverables under a service bureau, time sharing, or other arrangement; or (c) reverse engineer, decompile, disassemble, or otherwise attempt to derive or access any of the Software Deliverables' source code and/or human readable embodiment.<br>
+This License permits Licensee to install the Software on more than one computer system, as long as the Software will not be used on more than one computer system simultaneously. Licensee will not make copies of the Software or allow copies of the Software to be made by others, unless authorized by this License Agreement. Licensee may make copies of the Software for backup purposes only.<br>
+4. Termination<br>
+Licensor has the right to terminate this License Agreement and Licensee's right to use this Software upon any material breach by Licensee.<br>
+Licensee agrees to return to Licensor or to destroy all copies of the Software upon termination of the License.<br>
+7. This License Agreement is the entire and exclusive agreement between Licensor and Licensee regarding this Software. This License Agreement replaces and supersedes all prior negotiations, dealings, and agreements between Licensor and Licensee regarding this Software.<br>
+8. This License Agreement is governed by the law of Massachusetts.<br>
+9. This License Agreement is valid without Licensor's signature. It becomes effective upon the Licensee's use of the Software.<br>
+10. Representations, Warranties and Disclaimer<br>
+UNLESS OTHERWISE MUTUALLY AGREED TO BY THE PARTIES IN WRITING, LICENSOR OFFERS THE WORK AS-IS AND ONLY TO THE EXTENT OF ANY RIGHTS HELD IN THE LICENSED WORK BY THE LICENSOR. THE LICENSOR MAKES NO REPRESENTATIONS OR WARRANTIES OF ANY KIND CONCERNING THE WORK, EXPRESS, IMPLIED, STATUTORY OR OTHERWISE, INCLUDING, WITHOUT LIMITATION, WARRANTIES OF TITLE, MARKETABILITY, MERCHANTIBILITY, FITNESS FOR A PARTICULAR PURPOSE, NONINFRINGEMENT, OR THE ABSENCE OF LATENT OR OTHER DEFECTS, ACCURACY, OR THE PRESENCE OF ABSENCE OF ERRORS, WHETHER OR NOT DISCOVERABLE. SOME JURISDICTIONS DO NOT ALLOW THE EXCLUSION OF IMPLIED WARRANTIES, SO SUCH EXCLUSION MAY NOT APPLY TO YOU.<br>
+11. Limitation on Liability<br>
+EXCEPT TO THE EXTENT REQUIRED BY APPLICABLE LAW, IN NO EVENT WILL LICENSOR BE LIABLE TO LICENSEE ON ANY LEGAL THEORY FOR ANY SPECIAL, INCIDENTAL, CONSEQUENTIAL, PUNITIVE OR EXEMPLARY DAMAGES ARISING OUT OF THIS LICENSE OR THE USE OF THE WORK, EVEN IF LICENSOR HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.<br>
+Licensee agrees to defend and indemnify Licensor and hold Licensor harmless from all claims, losses, damages, complaints, or expenses connected with or resulting from Licensee's business operations.<br>
+12. Miscellaneous<br>
+a.	If any provision of this License is invalid or unenforceable under applicable law, it shall not affect the validity or enforceability of the remainder of the terms of this License, and without further action by the parties to this agreement, such provision shall be reformed to the minimum extent necessary to make such provision valid and enforceable.<br>
+b.	No term or provision of this License shall be deemed waived and no breach consented to unless such waiver or consent shall be in writing and signed by the party to be charged with such waiver or consent.<br>
+c.	This License constitutes the entire agreement between the parties with respect to the Software licensed here. There are no understandings, agreements or representations with respect to the Software not specified here. Licensor shall not be bound by any additional provisions that may appear in any communication from You. This License may not be modified without the mutual written agreement of the Licensor and You.<br>
+]]>
+</license-agreement>
+<files>
+	<file source="BuildScripts/CanLinkIt/"
+		destination="$pluginsfolder/Panels/"/>
+	<file source="bin-debug/CanLinkIt.swf"
+		destination="$pluginsfolder/Panels/CanLinkIt"/>
+
+</files>
+<configuration-changes>
+</configuration-changes>
+</macromedia-extension>

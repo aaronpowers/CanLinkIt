@@ -1,0 +1,221 @@
+﻿#target photoshop
+
+/***********
+	* We do several things in testing that we don't want in runtime, because we want to aggressively detect any possible errors during test, but want to handle them more gracefully in runtime.
+	*
+	* First, I recommend you DON'T try/catch any exceptions during the test scripts, because if you don't catch it, ExtendScript will automatically stop at those lines and you'll get to see the actual error.
+	* Catching errors is good for production code, but given this particular debugger, it's easier not to catch exceptions in test code.
+	*
+	
+	*/
+// Turn strict on so that we can see if we have any additional likely problems. We don't do this in runtime because we want to throw less errors.
+#strict on
+/***********************
+	*
+	* We want to be able to catch any exceptions right where they are, but only in test mode. Otherwise, they should get caught and handled.
+	* So we create a variable only when we're testing that we can use in this way: 
+	try {
+	} catch (e) {
+		logIt(e);
+		if (typeof BREAK_ON_UNEXPECTED!= "undefined") $.bp();		
+	}
+	*
+	*/
+var BREAK_ON_UNEXPECTED=true;
+
+
+/**************************************
+	* Define the unit tests below
+	*/
+var errorCount=0;
+var errorMessages = "";
+
+function assertEquals(expected, actual,description) {
+	if (expected==actual)
+		// good!
+		return true;
+	if (expected!=undefined && expected!=null && typeof expected=="object" && expected.equals!=undefined) {
+		if (expected.equals(actual))
+			return true;
+	}
+	var message="assertEqualsFailed: These two items should be equal: \nexpected="+expected+"\n\n     actual="+actual;
+	if (description!=undefined && description!=null && description.length>0)
+		message+="\n\n"+description;
+	alert(message);
+	errorMessages+="\n-----------------------\n"+message;
+	errorCount++;
+	return false;
+}
+
+function assertNotEquals(expected, actual,description) {
+	if (expected!=actual)
+		// good!
+		return true;
+	if (expected!=undefined && expected!=null && typeof expected=="object" && expected.equals!=undefined) {
+		if (!expected.equals(actual))
+			return true;
+	}
+	var message="assertNotEqualsFailed: These two items should not be equal: \nexpected="+expected+"\n\n     actual="+actual;
+	if (description!=undefined && description!=null && description.length>0)
+		message+="\n\n"+description;
+	alert(message);
+	errorMessages+="\n-----------------------\n"+message;
+	errorCount++;
+	return false;
+}
+
+function assertXMLHasNoProperty(id, xml, description) {
+	if (xml.indexOf("<property id=\""+id+"\">")==-1) {
+		return true;
+	}
+	// We failed. Let's give the user a better error message.
+	
+	
+	var message="assertXMLHasNoProperty Failed: The xml property should not have a property named "+id+".\n";
+	var propertyStartText = "<property id=\""+id+"\">";
+	var index = xml.indexOf(propertyStartText);
+	if (index==-1)
+		message+="There is an error in UnitTestLib.jsxinc: we couldn't find the property.\n";
+	else {
+		//var endsAt=xml.indexOf("<",index+propertyStartText.length+2);
+		var actual = xml.substr(index+propertyStartText.length);
+		//logIt("assertXMLHasProperty("+id+","+value+",...): so start of xml value="+actual);
+		actual = actual.substring(0, actual.indexOf("</property>"));
+		/*logIt("assertXMLHasProperty("+id+","+value+",...): xml value="+actual);
+		logIt("assertXMLHasProperty("+id+","+value+",...): xml="+xml);*/
+		message+="     actual="+actual+"\n\n";
+	}	
+	
+	if (description!=undefined && description!=null && description.length>0)
+		message+="\n\n"+description+"\n\n";
+	message+=xml;
+
+	alert(message);
+	errorMessages+="\n-----------------------\n"+message;
+	errorCount++;
+	return false;
+}
+
+
+function assertXMLHasProperty(id, value, xml, description) {
+	var present = convertToXML(value, id);
+	if (xml==undefined) {
+		
+	} else if (xml.indexOf(present)>-1) {
+		return true;
+	}
+	// We failed. Let's give the user a better error message.
+	logIt("expected="+present);
+	
+	
+	var message="assertXMLHasProperty Failed: The xml property named "+id+" does not match.\n";
+	message+="expected="+value+"\n\n";
+	//items should be equal: \nexpected="+expected+"\n\n     actual="+actual;
+	if (xml==undefined)
+		message+="But the XML is undefined.";
+	else if (xml==null)
+		message+="But the XML is null.";
+	else {
+		var propertyStartText = "<property id=\""+id+"\">";
+		var index = xml.indexOf(propertyStartText);
+		if (index==-1)
+			message+="But this property does not exist in the xml.\n";
+		else {
+			//var endsAt=xml.indexOf("<",index+propertyStartText.length+2);
+			var actual = xml.substr(index+propertyStartText.length);
+			//logIt("assertXMLHasProperty("+id+","+value+",...): so start of xml value="+actual);
+			actual = actual.substring(0, actual.indexOf("</property>"));
+			//logIt("assertXMLHasProperty("+id+","+value+",...): xml value="+actual);
+			//logIt("assertXMLHasProperty("+id+","+value+",...): xml="+xml);
+			message+="     actual="+actual+"\n\n";
+		}
+	}
+	
+	if (description!=undefined && description!=null && description.length>0)
+		message+=description+"\n\n";
+	message+=xml;
+
+	alert(message);
+	errorMessages+="\n-----------------------\n"+message;
+	errorCount++;
+	return false;
+}
+
+
+
+
+/**************************************************************************************************
+	* Here are some Unit Test utilities that are specific to the CanLinkIt classes, but are used in multiple files.
+	*
+	*/
+
+
+function checkForXMLBasics(xml) {
+	assertEquals(true, xml.length>20,"checkForXMLBasics: There should be some data in the XML string, but it only had xml="+xml);
+	assertEquals(true, xml.substr(0,"<object><property id=".length)=="<object><property id=","checkForXMLBasics: The xml string should begin with \"<object><property id=\", but it had xml="+xml);
+	assertEquals(true, xml.substr(xml.length-"></property></object>".length, "></property></object>".length)=="></property></object>",
+		"checkForXMLBasics: The xml string should end with \"></property></object>\", but it had xml="+xml);
+}
+
+
+function makeLayerNamedActive(layerName) {
+	var layerRef = activeDocument.artLayers.getByName(layerName);
+	assertEquals(true, layerRef!=null,"makeLayerNamedActive: There should be a layer in this file named "+layerName);
+	if (layerRef==null)
+		return null; // we just can't do the rest of this.
+	// select that layer
+	activeDocument.activeLayer=layerRef;
+	assertEquals(layerName,activeDocument.activeLayer.name,"For some reason, we couldn't select the layer "+layerName);
+	// unless we do this, we sometimes aren't seeing the results of the change handled completely (e.g. later the code asks for the activeLayer but still gets the old layer. Putting this in fixes the problem).
+	app.refresh();
+	return layerRef;
+}
+
+
+
+/* Layer should be not up to date, but should be a smart object.
+	*/
+function checkForLayerNeedToBeUpdated(layerName) {
+	var layerRef = makeLayerNamedActive(layerName);
+	
+	// Note that selection doesn't always work, I'm not sure why (perhaps there's a delay?), so we're just going to pass it in.
+	var xml = linkDox.getActiveLayerInfo("1");
+	// Check to make sure it's linked, but is out of date.
+	checkForXMLBasics(xml);
+	assertXMLHasProperty(XMPObjectTags.HAS_DOC,true, xml, 
+		"checkForLayerNeedToBeUpdated: The XML should include a property, "+XMPObjectTags.HAS_DOC+"=true.");
+	assertXMLHasNoProperty("unsaved",xml,"checkForLayerNeedToBeUpdated: The XML should not include a property, unsaved.");
+	assertXMLHasProperty("isSO",true,xml,"checkForLayerNeedToBeUpdated: The XML should include a property, isSO=true.");
+	assertXMLHasProperty("hasLink",true,xml,"checkForLayerNeedToBeUpdated: The XML should include a property, hasLink=true.");
+	assertXMLHasProperty("isValid",true,xml, "checkForLayerNeedToBeUpdated: The XML should include a property, isValid=true.");
+	assertXMLHasProperty("layerName",layerName,xml,
+		"checkForLayerNeedToBeUpdated: The XML should include a property, layerName="+layerName+", but it' doesn't.\nxml="+xml);
+	assertXMLHasProperty("isCurrent",false,xml, "checkForLayerNeedToBeUpdated: The XML should include a property, isCurrent=false.");
+	assertEquals(true, xml.indexOf("<property id=\"uri\"><string>")>-1,
+		"checkForLayerNeedToBeUpdated: The XML should include a property with the uri being the path to the file, but it' doesn't.\nxml="+xml);
+	assertEquals(true, xml.indexOf("<property id=\"relativeURI\"><string>")>-1,
+		"checkForLayerNeedToBeUpdated: The XML should include a property with the relativeURI being the relative path to the file, but it' doesn't.\nxml="+xml);	
+}	
+/* Layer should be not up to date, but should be a smart object.
+	*/
+function checkForLayerIsUpToDate(layerName) {
+	var layerRef = makeLayerNamedActive(layerName);
+
+	xml = linkDox.getActiveLayerInfo("1");
+	checkForXMLBasics(xml);
+	assertEquals(true, xml.indexOf("<property id=\""+XMPObjectTags.HAS_DOC+"\"><true/></property>")>-1,
+		"checkForLayerIsUpToDate: The XML should include a property, "+XMPObjectTags.HAS_DOC+"=true, but it doesn't.\nxml="+xml);
+	assertEquals(true, xml.indexOf("<property id=\"unsaved\"><true/></property>")==-1,
+		"checkForLayerIsUpToDate: The XML shouldn't include a property, unsaved=true, but it does.\nxml="+xml);
+	assertEquals(true, xml.indexOf("<property id=\"isSO\"><true/></property>")>-1,"checkForLayerIsUpToDate: The XML should include a property, isSO=true, but it doesn't.\nxml="+xml);
+	assertEquals(true, xml.indexOf("<property id=\"hasLink\"><true/></property>")>-1, "checkForLayerIsUpToDate: The XML should include a property, hasLink=true, but it' doesn't.\nxml="+xml);
+	assertEquals(true, xml.indexOf("<property id=\"isValid\"><true/></property>")>-1, "checkForLayerIsUpToDate: The XML should include a property, isValid=true, but it' doesn't.\nxml="+xml);
+	assertEquals(true, xml.indexOf("<property id=\"layerName\"><string>"+layerName+"</string></property>")>-1,
+		"checkForLayerIsUpToDate: The XML should include a property, layerName="+layerName+", but it' doesn't.\nxml="+xml);
+	assertEquals(true, xml.indexOf("<property id=\"isCurrent\"><true/></property>")>-1, "checkForLayerIsUpToDate: The XML should include a property, isCurrent=true, but it' doesn't.\nxml="+xml);	
+	// note: we don't check for the full URI, just for the basic beginning because we don't know the file's name!
+	assertEquals(true, xml.indexOf("<property id=\"uri\"><string>")>-1,
+		"checkForLayerIsUpToDate: The XML should include a property with the uri being the path to the file, but it' doesn't.\nxml="+xml);
+	assertEquals(true, xml.indexOf("<property id=\"relativeURI\"><string>")>-1,
+		"checkForLayerIsUpToDate: The XML should include a property with the relativeURI being the relative path to the file, but it' doesn't.\nxml="+xml);	
+}

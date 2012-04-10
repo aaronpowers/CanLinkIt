@@ -1,0 +1,362 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Copyright 2011 Aaron Powers
+All Rights Reserved
+
+Warning: after using the visual editor, the mx:Application line below
+-->
+<mx:Application xmlns:mx="http://www.adobe.com/2006/mxml"
+				backgroundColor="#D6D6D6" creationComplete="init()"
+				currentState="default" horizontalAlign="left" layout="vertical" paddingBottom="10"
+				paddingLeft="10" paddingRight="10" paddingTop="10" verticalGap="5">
+	<mx:Script>
+		<![CDATA[
+			import canlinkit.PhotoshopHelper;
+			import canlinkit.Tests;
+			import canlinkit.VersionInfo;
+			
+			import com.adobe.csxs.core.CSXSInterface;
+			import com.adobe.csxs.events.*;
+			import com.adobe.csxs.external.*;
+			import com.adobe.csxs.external.resources.*;
+			import com.adobe.csxs.logging.targets.LocalConnectionTarget;
+			import com.adobe.csxs.types.*;
+			
+			import mx.collections.*;
+			import mx.controls.Alert;
+			import mx.events.CloseEvent;
+			import mx.events.FlexEvent;
+			import mx.rpc.events.*;
+			import mx.rpc.http.HTTPService;
+			
+			private var photoshopHelper:PhotoshopHelper=null;
+			private var versionInfo:VersionInfo=null;
+			
+			private static var DEBUG_STARTUP:Boolean=false;
+						
+			public function init():void{
+				
+				/*if (DEBUG_STARTUP)
+					Alert.show("init() line 1b", "Debug", Alert.OK, Sprite(mx.core.Application.application));*/
+				
+				try {
+					CSXSInterface.instance.evalScript("PhotoshopPersistent");
+
+				} catch (errObject:Error) {
+					Alert.show("Startup failed. Please send a screen shot \n" +
+						"of this to the developers. Error=\n"+errObject, "Debug", Alert.OK, Sprite(mx.core.Application.application));
+				}
+				
+				try {
+					photoshopHelper = new PhotoshopHelper(this);
+					versionInfo = new VersionInfo(photoshopHelper);
+
+					photoshopHelper.logIt("init(): Initializing...");
+
+					// Initialize the link to the JSX that's already running
+	
+					CSXSInterface.instance.evalScript("linkDox.init");
+					
+					var xmlMenu:XML = <Menu></Menu>;
+					xmlMenu.appendChild(<MenuItem Label="About CanLinkIt"/>);
+					xmlMenu.appendChild(<MenuItem Label="Check For Newer Versions"/>);
+					if (VersionInfo.IN_DEVELOPMENT)
+						xmlMenu.appendChild(<MenuItem Label="Run Unit Tests"/>);
+					//var xmlMenu:XML = <Menu><MenuItem Label="About CanLinkIt"/><MenuItem Label="Check For Newer Versions"/></Menu>;
+					CSXSInterface.getInstance().setPanelMenu(xmlMenu);
+					CSXSInterface.getInstance().addEventListener(MenuClickEvent.FLYOUT_MENU_CLICK, menuHandler);
+					
+					// Photoshop has a very tightly sized style, flash uses a lot more extra space. We need to tighten it up to look like photoshop and fit into the small space available by default to panels.
+					linkToButton.height-=5;
+					updateSelectedButton.height-=5;
+					updateAllButton.height-=5;
+					
+					getActiveLayerInfo("1");
+					
+					versionInfo.checkVersion(false);
+										
+					photoshopHelper.logIt("init(): Initialized.");
+					/*if (DEBUG_STARTUP)
+						Alert.show("init() line 50", "Debug", Alert.OK, Sprite(mx.core.Application.application));*/
+					
+				} catch (errObject:Error) {
+					photoshopHelper.logIt("init() failed because of error: "+errObject.toString()+"\n"+errObject.getStackTrace());
+				}
+
+			}
+			
+			public function menuHandler(inEvent:MenuClickEvent):void{
+				if(inEvent.menuName=="About CanLinkIt") {
+					//CSXSInterface.instance.evalScript( "linkDox.alert", "Version "+CurrentVersion+"<br/><br/>Copyright 2012, Aaron Powers. All Rights Reserved");
+					Alert.show("Version "+versionInfo.getVersion()+"\n\nCopyright 2012, Aaron Powers. All Rights Reserved", "About CanLinkIt", Alert.OK, Sprite(mx.core.Application.application));
+				} else if(inEvent.menuName=="Check For Newer Versions") {
+					versionInfo.checkVersionNow(true);
+				} else if (inEvent.menuName=="Run Unit Tests") {
+					new Tests(this);
+				}
+			}
+
+			
+			
+			public function showStatus_NoDocumentSelected(reqResult:SyncRequestResult):void {
+				//PsStatus.source = blankIconSymbol;
+				//statusField1Label.text="";
+				if (reqResult.data.unsaved==true)
+					currentState='DocumentNotSaved';
+					//statusField1.text = "You must save this file before you can make links in it.";
+				else {
+					currentState='NoDocumentOpen';
+					//statusField1.text = "To start, open a document";
+				}
+				/*statusField2.text="";
+				statusField3.text="";
+				linkToButton.enabled=false;
+				updateSelectedButton.enabled=false;
+				updateAllButton.enabled=false;
+				changeLinkButton.visible=false;*/
+			}
+			
+			public function showStatus_MultipleLayersSelected():void {
+				currentState='MultipleLayersSelected';
+
+				/*currentState='default';
+				//PsStatus.source = blankIconSymbol;
+				statusField1Label.text="";
+				statusField1.text = "Multiple layers are selected";
+				statusField2.text="Select just one layer at a time to update.";
+				statusField3.text="";
+				// TODO make this possible to be enabled
+				updateSelectedButton.enabled=false;
+				changeLinkButton.visible=false;*/
+			}
+			
+			public function showStatus_LayerNotLinked(reqResult:SyncRequestResult):void {
+				currentState='SelectedNotLinked';
+				
+				/*statusField1Label.text="";
+				statusField1.text = "Selected layer is not linked";
+				statusField2.text="";
+				statusField3.text="";
+				updateSelectedButton.enabled=false;
+				changeLinkButton.visible=false;*/
+			}
+			
+			public function getShortFileName(reqResult:SyncRequestResult):String {
+				var fileName:String = reqResult.data.relativeURI;
+				if (fileName==null || fileName.length<2) {
+					fileName=reqResult.data.uri;
+				}				
+				if (fileName.length>40)
+					fileName = "..."+fileName.substr(fileName.length-35,fileName.length);
+				return fileName;
+			}
+			
+			public function showStatus_LayerLinkNotFound(reqResult:SyncRequestResult):void {
+				currentState='default';
+				// TODO handle this differently. The link points to a file that's no longer there. We should probably help the user out in this situation by letting them easily relink the file.						
+				//PsStatus.source = missingIconSymbol;
+				statusField1Label.text="";
+				statusField1.text = "The linked file cannot be found.";
+				statusField1.toolTip=reqResult.data.uri;
+				//statusField2.text="Linked to: "+getShortFileName(reqResult);
+				statusField2.text="Linked to: "+reqResult.data.relativeURI;
+				statusField3.text="";
+				//statusField3.text="Linked: "+formatDate( reqResult.data.linkDate );
+				updateSelectedButton.enabled=false;
+				//changeLinkButton.visible=false;
+			}
+			
+			/* function showStatus_LayerIsLinked
+			 * assumes layer is known to be linked
+			 */
+			public function showStatus_LayerIsLinked(reqResult:SyncRequestResult):void {
+				currentState='default';
+				statusField1Label.text="Linked to: ";
+				//statusField1.text=getShortFileName(reqResult);
+				statusField1.text=reqResult.data.relativeURI;
+				statusField1.toolTip=reqResult.data.uri;
+				statusField2.text="Modified: "+ photoshopHelper.formatDate( reqResult.data.fileDate );
+				statusField3.text="";
+				//statusField3.text="Linked: "+ formatDate( reqResult.data.linkDate );
+				// TODO implement this:
+				//changeLinkButton.visible=true;
+				if( reqResult.data.isCurrent == false ) {
+					updateSelectedButton.enabled=true;
+					//PsStatus.source = modifiedIconSymbol;
+				} else {
+					// Aaron Powers' addition to allow updates even when it's not current.
+					// TODO we should check in more detail, we know that isCurrent is sometimes returning true when an image file has been changed (only returns false correctly for PSD files)
+					updateSelectedButton.enabled=false;
+					//PsStatus.source = linkedIconSymbol;
+				}
+			}
+			
+			
+			/**
+			 Function:		getPsStatus
+			 Description:	Calls the "getPsStatus" function in the Links.jsx
+			 and retrieve the results through reqResult.
+			 Notes:			When this function is not called by an event
+			 pass "1" as the psDescID 
+			 */
+			
+			/**
+			 * Sometimes the first time isn't going to be good enough... So we try again in a bit.
+			 */
+			private var getActiveLayerInfoTimer:Timer;
+			private var delayedDescIDToUse:String="1";
+			public function getActiveLayerInfoInAMoment():void {
+				if (getActiveLayerInfoTimer==null) {
+					getActiveLayerInfoTimer = new Timer(1000);// note: There's no good answer here as to a perfect time, so we're picking 1 second, which should be long enough for any Photoshop slowness...
+					getActiveLayerInfoTimer.addEventListener(TimerEvent.TIMER,getActiveLayerInfoTimerEvent);
+				} else if (getActiveLayerInfoTimer.running)
+					return; // don't start a second one.
+				getActiveLayerInfoTimer.start();
+			}
+			public function getActiveLayerInfoTimerEvent(event:TimerEvent):void {
+				getActiveLayerInfoTimer.stop();
+				getActiveLayerInfo(delayedDescIDToUse);
+			}
+			
+			
+			public function getActiveLayerInfo( psDescID:String ):void{
+				try {
+					//photoshopHelper.logIt("LinkDox.mxml/getPsStatus: starting");
+					var reqResult:SyncRequestResult = CSXSInterface.instance.evalScript( "linkDox.getActiveLayerInfo", psDescID );
+					delayedDescIDToUse=psDescID;
+					//photoshopHelper.logIt("LinkDox.mxml/getPsStatus: finished getstatus call");
+					// Reset any descriptions that could affect all items and aren't otherwise set in each one:
+					statusField1.toolTip="";
+					
+					if(reqResult.status!=SyncRequestResult.COMPLETE) {
+						/*if (DEBUG_STARTUP)
+							Alert.show("getActiveLayerInfo() trying again because status="+reqResult.status, "Debug", Alert.OK, Sprite(mx.core.Application.application));*/
+						//photoshopHelper.logIt("LinkDox.mxml/getPsStatus: reqResult status is not complete, it's "+reqResult.status);
+						getActiveLayerInfoInAMoment();
+						return;
+					}
+					if (!reqResult.data) {
+						//photoshopHelper.logIt("LinkDox.mxml/getPsStatus: reqResult.data is empty :( Why is this?");
+						//Alert.show("getActiveLayerInfo() there's no data...", "Debug", Alert.OK, Sprite(mx.core.Application.application));
+						getActiveLayerInfoInAMoment();
+						return;
+					}
+					
+					if( reqResult.data.hasDoc == false ){
+						//photoshopHelper.logIt("LinkDox.mxml/getPsStatus: no document open");
+						showStatus_NoDocumentSelected(reqResult);
+						return;
+					}
+					
+					linkToButton.enabled=true;
+					updateAllButton.enabled=true;
+					//photoshopHelper.logIt("LinkDox.mxml/getPsStatus: 2");
+					
+					if( reqResult.data.multipleLayersSelected == true ){
+						// TODO check all layers to see if any have our metadata
+						//photoshopHelper.logIt("LinkDox.mxml/getPsStatus: has multiple layers selected");
+						showStatus_MultipleLayersSelected();
+						return;
+					} 
+					//photoshopHelper.logIt("LinkDox.mxml/getPsStatus: 3");
+					
+					if( reqResult.data.isSO == false ) {
+						/*Layer is not a smart object*/
+						// TODO in the future this might be capable of being a smart object
+						//photoshopHelper.logIt("LinkDox.mxml/getPsStatus: not a smart object");
+						showStatus_LayerNotLinked(reqResult);
+						return;
+					}
+					//photoshopHelper.logIt("LinkDox.mxml/getPsStatus: 4");
+					
+					if (reqResult.data.hasLink == false ){
+						showStatus_LayerNotLinked(reqResult);
+						return;
+					}					
+					if (reqResult.data.isValid == false ) {
+						showStatus_LayerLinkNotFound(reqResult);
+						return;
+					}
+					
+					//photoshopHelper.logIt("LinkDox.mxml/getPsStatus: is linked, showing message");					
+					showStatus_LayerIsLinked(reqResult);
+				} catch (errObject:Error) {
+					photoshopHelper.logIt("getPsStatus() failed because of error: "+errObject.toString()+"\n"+errObject.getStackTrace());
+				}
+			}
+			
+			
+		]]>
+	</mx:Script>
+	<mx:states>
+		<mx:State name="default">
+			<mx:SetProperty name="width" target="{hbox1}"/>
+			<mx:SetStyle name="horizontalAlign" target="{hbox1}" value="left"/>
+			<mx:SetStyle name="horizontalAlign" value="left"/>
+			<mx:SetProperty name="width" target="{statusField2}"/>
+			<mx:SetProperty name="width" target="{statusField3}"/>
+			<mx:SetProperty name="width" target="{hbox2}"/>
+		</mx:State>
+		<mx:State name="Errors">
+			<mx:RemoveChild target="{hbox1}"/>
+			<mx:RemoveChild target="{statusField3}"/>
+			<mx:RemoveChild target="{statusField2}"/>
+			<mx:AddChild position="before" relativeTo="{areaSpacer}">
+				<mx:Label id="errorMessageLabel" text="Error Message Here"/>
+			</mx:AddChild>
+			<mx:SetProperty name="enabled" target="{linkToButton}" value="false"/>
+			<mx:SetProperty name="enabled" target="{updateSelectedButton}" value="false"/>
+			<mx:SetProperty name="enabled" target="{updateAllButton}" value="false"/>
+			<mx:AddChild position="before" relativeTo="{areaSpacer}">
+				<mx:Label id="errorMessageLabel2" text="Label"/>
+			</mx:AddChild>
+		</mx:State>
+		<mx:State basedOn="Errors" name="MultipleLayersSelected">
+			<mx:SetProperty name="text" target="{errorMessageLabel}" value="Multiple layers are selected."/>
+			<mx:SetProperty name="enabled" target="{updateAllButton}" value="true"/>
+			<mx:SetProperty name="text" target="{errorMessageLabel2}"
+							value="To update, select just one layer at a time."/>
+			<mx:SetProperty name="enabled" target="{linkToButton}" value="true"/>
+		</mx:State>
+		<mx:State basedOn="Errors" name="DocumentNotSaved">
+			<mx:SetProperty name="text" target="{errorMessageLabel}"
+							value="You must save this file before you can make links in it."/>
+			<mx:SetProperty name="text" target="{errorMessageLabel2}"/>
+		</mx:State>
+		<mx:State basedOn="Errors" name="NoDocumentOpen">
+			<mx:SetProperty name="text" target="{errorMessageLabel2}"/>
+			<mx:SetProperty name="text" target="{errorMessageLabel}"
+							value="To start, you must open a document."/>
+		</mx:State>
+		<mx:State basedOn="Errors" name="SelectedNotLinked">
+			<mx:SetProperty name="text" target="{errorMessageLabel}"
+							value="Selected layer is not linked"/>
+			<mx:SetProperty name="text" target="{errorMessageLabel2}"/>
+			<mx:SetProperty name="enabled" target="{linkToButton}" value="true"/>
+			<mx:SetProperty name="enabled" target="{updateAllButton}" value="true"/>
+		</mx:State>
+	</mx:states>
+	
+  
+	
+	
+	<mx:HBox id="hbox1">
+		<mx:Label id="statusField1Label" fontWeight="bold"/>
+		<mx:Label id="statusField1" fontSize="9" text="Starting Up..."/>
+	</mx:HBox>
+	<mx:Label id="statusField2" x="5" y="30" fontSize="9" text="..."/>
+	<mx:Label id="statusField3" fontSize="9" text="..."/>
+	<mx:Spacer id="areaSpacer" width="10" height="100%"/>
+	<mx:HBox id="hbox2" verticalGap="8">
+		<mx:Button id="linkToButton" label="New link..." click="photoshopHelper.callNewLink();" fontSize="9"
+				   icon="@Embed('assets/icon_New.png')"/>
+		<mx:Button id="updateSelectedButton" label="Update" click="photoshopHelper.callUpdateSelected();"
+				   fontSize="9"/>
+		<mx:Button id="updateAllButton" label="Update All" click="photoshopHelper.callUpdateAll();" fontSize="9"/>
+		<!--<mx:Button id="changeLinkButton" label="Change link..." click="callUpdateAll();" fontSize="9"
+				   icon="@Embed('assets/P_ReLink_26x12_N.png')"/>-->
+	</mx:HBox>
+	
+	
+	
+</mx:Application>

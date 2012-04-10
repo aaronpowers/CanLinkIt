@@ -1,0 +1,85 @@
+﻿/*********************************************
+Copyright 2011 Aaron Powers
+All Rights Reserved
+*/
+/*
+ * XML utilities
+ * use #include to include this file
+ */
+/************************************************************************************************************
+General XML Functions
+    **/
+
+function getXMLObject(property, value) {
+	var xml = "<object>";
+	xml += convertToXML(value, property);
+	xml += "</object>"
+	return xml;
+}
+
+
+function getClassName (object) { 
+   var funcNameRegex = /function (.{1,})\(/;
+   var results = (funcNameRegex).exec((object).constructor.toString());
+   return (results && results.length > 1) ? results[1] : "";
+};
+
+
+function convertObjectToXML(property, identifier) {
+	var className=getClassName(property);
+	
+	var xml = '<property id="' + identifier + '">';
+	switch(className){
+		case "Date":
+			xml += "<date>";
+			xml += property.toString();
+			xml += "</date>";
+			break;
+		default:
+			alert("XMLLib.jsxinc: convertObjectToXML: Object class " + className + " is unknown.");
+			return "";
+	}
+	xml += '</property>';
+	return xml;
+}
+
+/**
+	John Huan Vu
+	In order to communicate to the SWF file, it must be written as an XML
+		containing the property and identifier. This utility is very helpful for
+		a two-way communication between the JSX and SWF.
+	@param {String} property The property or value for the identifier
+	@param {String} identifier The unique identifier for the property
+	@returns An xml containing the property and identifier
+	@type String
+*/
+function convertToXML(property, identifier){
+	var type = typeof property;
+	var xml = '<property id="' + identifier + '">';
+	
+	switch(type){
+		case "number":
+			xml += "<number>";
+			xml += property.toString();
+			xml += "</number>";
+			break;
+		case "boolean":
+			xml += "<" + property.toString() + "/>";
+			break;
+		case "string":
+			xml += "<string>";
+			xml += property.toString();
+			xml += "</string>";
+			break;
+		case "object":
+			return convertObjectToXML(property, identifier);
+		case "undefined":
+			xml += "<string>undefined</string>";
+			break;
+		default:
+			alert("Type " + type + " is unknown.");
+			return "";
+	}
+	xml += '</property>';
+	return xml;
+}

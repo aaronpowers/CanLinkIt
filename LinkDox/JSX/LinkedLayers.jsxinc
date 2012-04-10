@@ -1,0 +1,194 @@
+﻿/***************************************************
+	* LinkedLayers.jsx
+	* 
+	* This requires CanLinkIt.jsx -- assume you are including this from CanLinkIt.jsx, even for testing as it relies on functions there.
+	* There's corresponding code in LinkedLayers.as
+	*
+	*/
+#target photoshop
+
+//-----------------------------------------------------------------------------------------------------
+function LinkedLayers() {
+	this.eraseAllInfo();
+}
+
+function DocLayerInfo() {
+	this.document=null;
+	this.linkedLayers=new Array(); /*of ArtLayer, ones that are linked*/
+	this.layerGroupsToSearch=new Array();
+	this.linkedLayersAddedWhileSearching = new Array(); /*of ArtLayer. These are ones that were linked during the search. At the end of the search, add them if they're not there already, otherwise ignore this.*/
+}
+
+/*********************
+	* LinkedLayers.continueFindingLinkedLayersXML
+	*
+	* Same as  LinkedLayers.continueFindingLinkedLayers but wraps the return value in XML for easy access from ActionScript.
+	*
+	*/
+LinkedLayers.prototype.continueFindingLinkedLayersXML = function() {
+	return getXMLObject("boolean",this.continueFindingLinkedLayers());
+}
+
+LinkedLayers.prototype.getLayerInfoForDoc = function(doc) {
+	for (var i=0; i<this.documentInfos.length; i++) {
+		if (this.documentInfos[i].document==undefined) {
+			// remove this element. it's probably been closed.
+			this.documentInfos.splice(i,1);
+			i--;
+		} else if (!PsdLib.isDocumentStillOpen(this.documentInfos[i].document)) {
+			// it's not open anymore. Remove it from the list.
+			this.documentInfos.splice(i,1);
+			i--;
+		} else if (this.documentInfos[i].document==doc)
+			return this.documentInfos[i];
+	}
+	return null;
+}
+
+/**************************
+	* LinkedLayers.eraseAllData
+	*
+	* Sometimes we know our data is invalid, because something like a duplicate command happened in Photoshop and our information is probably wrong.
+	* 
+	*
+	* Arguments: None
+	* Returns: void
+	*
+	*
+	*/
+LinkedLayers.prototype.eraseAllData = function() {
+	this.currentDocumentToSearch=null;
+	this.documentInfos=new Array();/*of DocLayerInfo*/
+}
+
+
+/**************************
+	* LinkedLayers.continueFindingLinkedLayers
+	*
+	* Just a bit at a time, work through the open documents to load the list of layers in each one.
+	*
+	* Arguments: None
+	* Returns: true if it's done searching. false if there's more to search.
+	*
+	*
+	*/
+LinkedLayers.prototype.continueFindingLinkedLayers = function() {
+	if (this.currentDocumentToSearch!=null) {
+		this.continueFindingLinkedLayersInDoc();
+		return true;
+	}
+	// start at the beginning, searching through any documents we haven't searched yet.
+	for (var i=0; i<documents.length; i++) {
+		// check if we've searched through this document yet.
+		var info = this.getLayerInfoForDoc(documents[i]);
+		if (info!=undefined && info!=null) {
+			// It exists. Don't search this document.
+		} else {
+			// We haven't seen it before. Create the info and start searching.
+			this.currentDocumentToSearch=new DocLayerInfo();
+			this.currentDocumentToSearch.document=documents[i];
+			// Start the recursion off at the bottom:
+			this.currentDocumentToSearch.layerGroupsToSearch.push(this.currentDocumentToSearch.document.layers);
+			this.continueFindingLinkedLayersInDoc();
+			return true;
+		}
+	}
+	// Apparently all documents that are open have been searched.
+	return false;
+}
+
+/**************************
+	* LinkedLayers.continueFindingLinkedLayersInDoc
+	*
+	* Called by continueFindingLinkedLayers(), which is the key function.
+	* Just a group of layers at a time, work through this one open document to load the list of layers.
+	*
+	* Arguments: None (implied to use this.currentDocumentToSearch)
+	* Returns: true if it's done searching. false if there's more to search.
+	*
+	*/
+LinkedLayers.prototype.continueFindingLinkedLayersInDoc = function() {
+	var layersToSearch = this.currentDocumentToSearch.layerGroupsToSearch.pop();
+	for (var i=0; i<layersToSearch.length; i++) {
+		var layer = layersToSearch[i];
+		if (layer.typename=="LayerSet") {
+			this.currentDocumentToSearch.layerGroupsToSearch.push(layer.layers);
+		} else {
+			// Check whatever we want to check here.
+			// If we want to genericize this, we'd use a function here or pass back these layers.
+			
+			// Now we have a layer to search. So we need to check if it's linked, and save it only if it's linked.
+			// We want to test if it's a smart object, but unfortunately, this field is only populated when this document is in the foreground... We can't search in the background. Why not? Who knows?
+			if (activeDocument==this.currentDocumentToSearch.document && layer.kind != LayerKind.SMARTOBJECT)
+				continue; // skip the rest of this iteration of the loop*/
+			var xmp = canLinkIt.xmpHelper.getXMPFrom(layer);
+			var linkRef = xmp.getProperty( canLinkIt.AdobeLinksNameSpace, XMPObjectTags.URI );
+			if (linkRef==undefined || linkRef==null)
+				// it's not linked
+				continue;
+			// It is linked:
+			this.currentDocumentToSearch.linkedLayers.push(layer);
+		}
+	}
+
+	if (this.currentDocumentToSearch.layerGroupsToSearch.length==0) {
+		// Searching is done already, nothing left to search.
+		
+		
+		while (this.currentDocumentToSearch.linkedLayersAddedWhileSearching.length>0) {
+			// Remove the first element so we won't look for it again.
+			var layer = this.currentDocumentToSearch.linkedLayersAddedWhileSearching.shift();
+
+			// This linked layers was added during the search. If it's not already in our list, we need to add it.
+			if (this.currentDocumentToSearch.linkedLayers.indexOf(layer)==-1)
+				// it's not there, add it:
+				this.currentDocumentToSearch.linkedLayers.push(layer);
+		}
+		
+		// Save the info from this document that we just searched.
+		// It's important that we don't push this onto the stack until the search of this document is complete. Otherwise, we might have a synchronization problem.
+		this.documentInfos.push(this.currentDocumentToSearch);
+		
+		logIt("LinkedLayers.continueFindingLinkedLayersInDoc(): Finished searching document "+this.currentDocumentToSearch.document+", found "+this.currentDocumentToSearch.linkedLayers.length+" linked layers");
+		
+		//  And mark it as finished searching so that it will go on to the next document next time.
+		this.currentDocumentToSearch=null;
+
+		return;
+	}
+}
+
+
+
+/*********************
+	* LinkedLayers.addLinkedLayer
+	*
+	* Call this after a new linked layer was added to a document. This way we'll continue to keep track of it.
+	*
+	* Arguments: layer (the linked layer), document (the doc the layer is in)
+	* Returns: Nothing
+	*
+	*/
+LinkedLayers.prototype.addLinkedLayer = function(document, layer) {
+	// Is searching for this document complete?
+	var docInfo = this.getLayerInfoForDoc(document);
+	if (docInfo==null) {
+		// searching this document isn't complete yet. So we can't add it, but it should get added automatically during the searching process.
+		if (this.currentDocumentToSearch!=null && this.currentDocumentToSearch.document=document) {
+			// we have a synchronization problem. We're in the middle of searching this document. Yikes!
+			// To be really efficient, we'll check after the search is over to see if this layer wasn't added, and if it wasn't, then add it.
+			// That way we save researching the whole document or even tracking where we are in the doc.
+			this.currentDocumentToSearch.linkedLayersAddedWhileSearching.push(layer);
+		}
+		return;
+	}
+	// Okay, add it.
+	docInfo.linkedLayers.push(layer);
+}
+
+LinkedLayers.prototype.toString = function() {
+	return "[Object type LinkedLayers\n"+
+	"currentDocumentToSearch="+this.currentDocumentToSearch+"\n"+
+	"documentInfos.length="+this.documentInfos.length+"\n"+
+	"]";
+}
