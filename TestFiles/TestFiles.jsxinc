@@ -5,14 +5,16 @@
 	*
 	*/
 
-// Some of these vars are used for the files:
+// Some of these vars are used for the files, especially rootPath
 #include "DeveloperVariables.jsx"
 /**************************************
 	* Define the variables below
 	*/
-var originalRootPath = "/c/Dropbox/AllDocuments/EntrepreneurshipAndIdeas/LinkDox/";
-//var rootPath = "/c/Dropbox/AllDocuments/EntrepreneurshipAndIdeas/LinkDox/";
-var endOfPath = "FlashBuilderProject/TestFiles/"
+var originalRootPath = "/c/Dropbox/AllDocuments/EntrepreneurshipAndIdeas/LinkDox/FlashBuilderProject/";
+//var rootPath is stored in DeveloperVariables.jsx so that it can be customized by each developer
+var endOfPath = "TestFiles/"
+var testFilesFolder = new Folder(rootPath+endOfPath+"Files");
+var testFilesFolderCopy = new Folder(rootPath+endOfPath+"FilesCopyDeleteMe");
 var testPathFolder1Assembled = rootPath+endOfPath+"Files/Folder1/AssembledFiles/";
 var testAssembledFileNameOnly="AssembledFile1.psd";
 var testAssembledFile2NameOnly="AssembledFile2.psd";
@@ -30,10 +32,12 @@ var testLinkToFile = new File(rootPath+endOfPath+"Files/Folder2/LinkToThese/Bord
 var testFileWithLotsOfLayers = new File(rootPath+endOfPath+"Files/FileWithTonsOfLayers.psd");
 var testFileWithLotsOfLayersAndLinks = new File(rootPath+endOfPath+"Files/FileWithManyLayersAndLinks.psd");
 
+var testFileWithBrokenLink = new File(rootPath+endOfPath+"Files/BrokenLink/HasBrokenLinkIt.psd");
 
 var testPathMoveToFolderName="FilesMoved"
 var testMovedDestinationFileNameOnly = "MovedDestination.psd";
 var testMovedDestinationFile = new File(rootPath+endOfPath+testPathMoveToFolderName+"/"+testMovedDestinationFileNameOnly);
+
 
 /********************
 	* closeAllDocuments()

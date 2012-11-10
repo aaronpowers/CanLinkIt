@@ -30,6 +30,5 @@ function testXML1() {
 
 testXML1();
 
-// The next line will show up in the JavaScript Console in ExtendScript Toolkit, so it works to check on errors:
-errorMessages+"\n\n"+
-"XML tests complete. Total errors: "+errorCount;
+$.writeln(errorMessages+"\n"+
+"XMLLib.jsx tests are complete. Total errors: "+errorCount);

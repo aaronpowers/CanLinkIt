@@ -51,5 +51,5 @@ testUnitTest();
 testEqualsDefinition();
 
 // The next line will show up in the JavaScript Console in ExtendScript Toolkit, so it works to check on errors:
-errorMessages+"\n"+
-"UnitTest tests complete. Total errors: "+errorCount;
+$.writeln(errorMessages+"\n"+
+"UnitTestLib.jsx tests are complete. Total errors: "+errorCount);

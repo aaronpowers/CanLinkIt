@@ -133,10 +133,9 @@ package canlinkit {
 		public function callUserJustEditedPlacedSmartObject():void {
 			//logIt("callUserJustEditedPlacedSmartObject: Starting");
 			/* The user has just started to edit a placed layer.
-			* We may want to do something about this.
 			*/
-			var reqResult:SyncRequestResult = CSXSInterface.instance.evalScript("linkDox.editedSOHelper.userEditedSOXML");
-			if (SyncRequestResult.COMPLETE == reqResult.status && reqResult.data.boolean==true) {
+			var reqResult:SyncRequestResult = CSXSInterface.instance.evalScript("canLinkIt.editedSOHelper.userEditedSOXML");
+			/*if (SyncRequestResult.COMPLETE == reqResult.status && reqResult.data.boolean==true) {
 				//logIt("callUserJustEditedPlacedSmartObject: user's planning to edit, setting up the timer");
 				//var versionString:String = reqResult.data.version;
 				var timer:Timer = new Timer(250);
@@ -145,13 +144,24 @@ package canlinkit {
 				timer.start();
 			} else {
 				//logIt("callUserJustEditedPlacedSmartObject: data="+data);
-			}
+			}*/
 			//logIt("callUserJustEditedPlacedSmartObject: Finished");
 		}
 		
-		public function callUserJustEditedPlacedSmartObjectPart2(event:TimerEvent):void {
+		public function callEditSmartObjectOriginal():void{
+			//logIt("callUserJustEditedPlacedSmartObject: Starting");
+			/* The user has just started to edit a placed layer.
+			*/
+			/*var reqResult:SyncRequestResult = */CSXSInterface.instance.evalScript("canLinkIt.editedSOHelper.userRequestsEditSO");
+			/*if (SyncRequestResult.COMPLETE == reqResult.status && reqResult.data.boolean==true) {
+			} else {
+				//logIt("callUserJustEditedPlacedSmartObject: data="+data);
+			}*/
+		}
+		
+		/*public function callUserJustEditedPlacedSmartObjectPart2(event:TimerEvent):void {
 			logIt("callUserJustEditedPlacedSmartObjectPart2: Started");
-			var reqResult:SyncRequestResult = CSXSInterface.instance.evalScript("linkDox.editedSOHelper.userEditedSOPartB");
+			var reqResult:SyncRequestResult = CSXSInterface.instance.evalScript("canLinkIt.editedSOHelper.userEditedSOPartB");
 			if (SyncRequestResult.COMPLETE)
 				if (reqResult.data.boolean==true) {
 					logIt("callUserJustEditedPlacedSmartObjectPart2: Seems to have worked successfully");
@@ -168,18 +178,30 @@ package canlinkit {
 			timer.addEventListener(TimerEvent.TIMER,callUserJustEditedPlacedSmartObjectPart2);
 			timer.start();
 			return;						
+		}*/
+		
+		public function callNewLink():void {
+			CSXSInterface.instance.evalScript("action_LinkTo.newLink");
+
 		}
 		
+		public function callNewLinkToALayerComp():void {
+			logIt("PhotoshopHelper.callLinkToALayerComp():(3)");
+			CSXSInterface.instance.evalScript("Action_LinkToLayerComp.newLinkToLayerComp");
+		}
 		
-		public function callNewLink():void{
-			CSXSInterface.instance.evalScript("linkDox.newLink");
+		public function callUpdateSelected():void {
+			CSXSInterface.instance.evalScript("canLinkIt.updateSelected");
 		}
-		public function callUpdateSelected():void{
-			CSXSInterface.instance.evalScript("linkDox.updateSelected");
+		public function callUpdateAll():void {
+			CSXSInterface.instance.evalScript("canLinkIt.updateAll");
 		}
-		public function callUpdateAll():void{
-			CSXSInterface.instance.evalScript("linkDox.updateAll");
+		
+		public function callUpdateAFolder():void {
+			CSXSInterface.instance.evalScript("Action_UpdateAllFiles.updateAllFiles");
 		}
+		
+
 		
 		/**
 		 Function:		PhotoshopCallback
@@ -261,7 +283,7 @@ package canlinkit {
 		 */
 		
 		public function logIt(inMessage:String):void {// used for debugging
-			var reqResult:SyncRequestResult = CSXSInterface.instance.evalScript("logIt", encodeURIComponent("LinkDox.mxml:"+inMessage));
+			var reqResult:SyncRequestResult = CSXSInterface.instance.evalScript("logIt", encodeURIComponent("CanLinkIt.mxml:"+inMessage));
 		}
 		
 		
@@ -300,6 +322,7 @@ package canlinkit {
 			var d:String = date.toLocaleString();
 			return d;
 		}
+		
 		
 		
 	}

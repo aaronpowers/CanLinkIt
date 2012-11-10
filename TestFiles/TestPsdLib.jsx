@@ -34,13 +34,50 @@ function testDocStillOpen() {
 	assertEquals(false, PsdLib.isDocumentStillOpen(docRef), "doc should now be closed");
 }
 
+function testGetLayerSizes() {
+	// Note: Running this test will trigger any plugin asking the user whether they want to edit the original...
+	// If this triggers this file's included canLinkIt tool asking about opening it, we could do the following. But it's the plugin in Photoshop asking during this stage, usually.
+	//debug_EditedSOHelper_autoAnswerOpenSO=false;
+
+	
+	var file=new File(rootPath+endOfPath+"Files/SizingIssue/TestGettingBoundsOnThis.psd");
+	app.open(file);
+
+	var allBounds=PsdLib.getBoundsOfAllLayers();
+	assertEquals(16,allBounds.left,"Expected left");
+	assertEquals(216,allBounds.right,"Expected right");
+	assertEquals(16,allBounds.top,"Expected top");
+	assertEquals(216,allBounds.bottom,"Expected bottom");
+	assertEquals(200,allBounds.width,"Expected width");
+	assertEquals(200,allBounds.height,"Expected height");
+	
+	allBounds=PsdLib.getLayerBounds();
+	assertEquals(16,allBounds.left,"Expected left");
+	assertEquals(216,allBounds.right,"Expected right");
+	assertEquals(16,allBounds.top,"Expected top");
+	assertEquals(216,allBounds.bottom,"Expected bottom");
+	assertEquals(200,allBounds.width,"Expected width");
+	assertEquals(200,allBounds.height,"Expected height");
+	
+	var internalBounds=PsdLib.getSmartObjectInternalBounds();
+	assertEquals(100,internalBounds.left,"Expected left");
+	assertEquals(300,internalBounds.right,"Expected right");
+	assertEquals(100,internalBounds.top,"Expected top");
+	assertEquals(300,internalBounds.bottom,"Expected bottom");
+	assertEquals(200,internalBounds.width,"Expected width");
+	assertEquals(200,internalBounds.height,"Expected height");
+	
+	
+	app.activeDocument.close(SaveOptions.DONOTSAVECHANGES);
+}
+
+
 closeAllDocuments();
 
 testMultiLayer();
 testDocStillOpen();
+testGetLayerSizes();
 
-
-// The next line will show up in the JavaScript Console in ExtendScript Toolkit, so it works to check on errors:
 // The next line will show up in the JavaScript Console in ExtendScript Toolkit, so it works to check on errors:
 $.writeln(errorMessages+"\n"+
-"PsdLib.jsx tests are complete. Total errors: "+errorCount);
+"PsdLib.jsxinc tests are complete. Total errors: "+errorCount);

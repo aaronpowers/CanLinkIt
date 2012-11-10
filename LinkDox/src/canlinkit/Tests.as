@@ -41,7 +41,7 @@ package canlinkit
 				Alert.show("runPhotoshopHelperTests() had an error:\n"+e+"\nStack Trace="+e.getStackTrace(), "Debug", Alert.OK, Sprite(Application.application));
 				return 1;
 			}
-			// This line should be unnecessary, but is a compilation requirement from ActionScript to have this here:
+			// This line should be unnecessary because of the try/catch returns should catch all cases, but is a compilation requirement from ActionScript to have this here:
 			return 0;
 		}
 		
@@ -57,7 +57,7 @@ package canlinkit
 				Alert.show("runVersionsTests() had an error:\n"+e+"\nStack Trace="+e.getStackTrace(), "Debug", Alert.OK, Sprite(Application.application));
 				return 1;
 			}
-			// This line should be unnecessary, but is a compilation requirement from ActionScript to have this here:
+			// This line should be unnecessary because of the try/catch returns should catch all cases, but is a compilation requirement from ActionScript to have this here:
 			return 0;
 		}
 		
@@ -115,9 +115,10 @@ package canlinkit
 				app.activeDocument.close(SaveOptions.DONOTSAVECHANGES);
 				return 0;
 			} catch (e:Error) {
-				Alert.show("runVersionsTests() had an error after virtual line "+line+".\n"+e+"\nStack Trace="+e.getStackTrace()+"\n"+e.message, "Debug", Alert.OK, Sprite(Application.application));
+				Alert.show("runFileTest1() had an error after virtual line "+line+".\n"+e+"\nStack Trace="+e.getStackTrace()+"\n"+e.message, "Debug", Alert.OK, Sprite(Application.application));
 				return 1;
 			}
+			// This line should be unnecessary because of the try/catch returns should catch all cases, but is a compilation requirement from ActionScript to have this here:
 			return 0;
 		}
 	}

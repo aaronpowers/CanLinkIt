@@ -58,7 +58,7 @@ XMPHelper.prototype.saveXMP = function(layer, xmp) {
 	* Output: A string, in XMPDateTime format, from when the file was last modified
 	*
 	*/
-function getDateFileModified(file) {
+XMPHelper.prototype.getDateFileModified=function (file) {
 	// Note: The original links panel used a date from the XMP metadata using XMPFile. Not sure why, because it only works for files that support XMP data, not regular files like images.
 	// Would there be some benefit to using that information when it's available?
 	var date = file.modified;

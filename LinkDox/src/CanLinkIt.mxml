@@ -11,6 +11,8 @@ Warning: after using the visual editor, the mx:Application line below
 				paddingLeft="10" paddingRight="10" paddingTop="10" verticalGap="5">
 	<mx:Script>
 		<![CDATA[
+			import mx.events.MenuEvent;
+			import mx.controls.Menu;
 			import canlinkit.PhotoshopHelper;
 			import canlinkit.Tests;
 			import canlinkit.VersionInfo;
@@ -57,19 +59,14 @@ Warning: after using the visual editor, the mx:Application line below
 	
 					CSXSInterface.instance.evalScript("linkDox.init");
 					
-					var xmlMenu:XML = <Menu></Menu>;
-					xmlMenu.appendChild(<MenuItem Label="About CanLinkIt"/>);
-					xmlMenu.appendChild(<MenuItem Label="Check For Newer Versions"/>);
-					if (VersionInfo.IN_DEVELOPMENT)
-						xmlMenu.appendChild(<MenuItem Label="Run Unit Tests"/>);
-					//var xmlMenu:XML = <Menu><MenuItem Label="About CanLinkIt"/><MenuItem Label="Check For Newer Versions"/></Menu>;
-					CSXSInterface.getInstance().setPanelMenu(xmlMenu);
-					CSXSInterface.getInstance().addEventListener(MenuClickEvent.FLYOUT_MENU_CLICK, menuHandler);
+					initPanelFlyoutMenu();
+					initPopupMenus();
 					
 					// Photoshop has a very tightly sized style, flash uses a lot more extra space. We need to tighten it up to look like photoshop and fit into the small space available by default to panels.
 					linkToButton.height-=5;
 					updateSelectedButton.height-=5;
-					updateAllButton.height-=5;
+					linkButton.height-=5;
+					//updateAllButton.height-=5;
 					
 					getActiveLayerInfo("1");
 					
@@ -85,7 +82,20 @@ Warning: after using the visual editor, the mx:Application line below
 
 			}
 			
-			public function menuHandler(inEvent:MenuClickEvent):void{
+			private function initPanelFlyoutMenu():void{
+				var xmlMenu:XML = <Menu></Menu>;
+				xmlMenu.appendChild(<MenuItem Label="About CanLinkIt"/>);
+				xmlMenu.appendChild(<MenuItem Label="Check For Newer Versions"/>);
+				if (VersionInfo.IN_DEVELOPMENT)
+					xmlMenu.appendChild(<MenuItem Label="Run Unit Tests"/>);
+				if (VersionInfo.IN_DEVELOPMENT)
+					xmlMenu.appendChild(<MenuItem Label="Link to layer comp"/>);
+				//var xmlMenu:XML = <Menu><MenuItem Label="About CanLinkIt"/><MenuItem Label="Check For Newer Versions"/></Menu>;
+				CSXSInterface.getInstance().setPanelMenu(xmlMenu);
+				CSXSInterface.getInstance().addEventListener(MenuClickEvent.FLYOUT_MENU_CLICK, panelFlyoutMenuHandler);
+			}
+						
+			public function panelFlyoutMenuHandler(inEvent:MenuClickEvent):void{
 				if(inEvent.menuName=="About CanLinkIt") {
 					//CSXSInterface.instance.evalScript( "linkDox.alert", "Version "+CurrentVersion+"<br/><br/>Copyright 2012, Aaron Powers. All Rights Reserved");
 					Alert.show("Version "+versionInfo.getVersion()+"\n\nCopyright 2012, Aaron Powers. All Rights Reserved", "About CanLinkIt", Alert.OK, Sprite(mx.core.Application.application));
@@ -93,52 +103,88 @@ Warning: after using the visual editor, the mx:Application line below
 					versionInfo.checkVersionNow(true);
 				} else if (inEvent.menuName=="Run Unit Tests") {
 					new Tests(this);
+				} else if (inEvent.menuName=="Link to layer comp") {
+					photoshopHelper.callNewLinkToALayerComp();
 				}
 			}
+			
+			private var updatePopupMenu:Menu;
+			
+			
+			private function initPopupMenus():void{
+				
+				updatePopupMenu = new Menu();
+				var dp:Object = [{label: "Update selected layer(s)"}, {label: "Update all in this file"}, {label: "Update all files in a folder"}];
+				updatePopupMenu.dataProvider = dp;
+				updatePopupMenu.selectedIndex = 0;
+				updatePopupMenu.addEventListener(MenuEvent.ITEM_CLICK, updatePopupMenuHandler);
+				updateSelectedButton.popUp=updatePopupMenu;
+				
+				
+				
+				//updatePopupMenu.dataProvider[1].enabled=false;
+				
+				
+				//popB.label = "Put in: " + myMenu.dataProvider[myMenu.selectedIndex].label;
+			}
+			
+			public function updatePopupMenuHandler(inEvent:MenuEvent):void{
+				updateSelectedButton.close();
+				switch (inEvent.index) {
+					case 0:
+						photoshopHelper.callUpdateSelected();
+						break;
+					case 1:
+						photoshopHelper.callUpdateAll();
+						break;
+					case 2:
+						photoshopHelper.callUpdateAFolder();
+						break;
+
+				}
+			}
+			
+			public function linkPopupMenuHandler(inEvent:MenuEvent):void{
+				linkToButton.close();
+				switch (inEvent.index) {
+					case 0:
+						photoshopHelper.callNewLink();
+						break;
+					case 1:
+						photoshopHelper.callNewLinkToALayerComp()();
+						break;
+				}
+			}
+			
+			
+			private function setUpdateButtonState(canUpdateLayer:Boolean, canUpdateDocument:Boolean):void{
+				updateSelectedButton.openAlways=!canUpdateLayer;
+				updatePopupMenu.dataProvider[0].enabled=canUpdateLayer;
+				updatePopupMenu.dataProvider[1].enabled=canUpdateDocument;
+			}
+			
+			
 
 			
 			
 			public function showStatus_NoDocumentSelected(reqResult:SyncRequestResult):void {
 				//PsStatus.source = blankIconSymbol;
-				//statusField1Label.text="";
 				if (reqResult.data.unsaved==true)
 					currentState='DocumentNotSaved';
-					//statusField1.text = "You must save this file before you can make links in it.";
 				else {
 					currentState='NoDocumentOpen';
-					//statusField1.text = "To start, open a document";
 				}
-				/*statusField2.text="";
-				statusField3.text="";
-				linkToButton.enabled=false;
-				updateSelectedButton.enabled=false;
-				updateAllButton.enabled=false;
-				changeLinkButton.visible=false;*/
+				setUpdateButtonState(false, false);
 			}
 			
 			public function showStatus_MultipleLayersSelected():void {
 				currentState='MultipleLayersSelected';
-
-				/*currentState='default';
-				//PsStatus.source = blankIconSymbol;
-				statusField1Label.text="";
-				statusField1.text = "Multiple layers are selected";
-				statusField2.text="Select just one layer at a time to update.";
-				statusField3.text="";
-				// TODO make this possible to be enabled
-				updateSelectedButton.enabled=false;
-				changeLinkButton.visible=false;*/
+				setUpdateButtonState(true, true);
 			}
 			
 			public function showStatus_LayerNotLinked(reqResult:SyncRequestResult):void {
 				currentState='SelectedNotLinked';
-				
-				/*statusField1Label.text="";
-				statusField1.text = "Selected layer is not linked";
-				statusField2.text="";
-				statusField3.text="";
-				updateSelectedButton.enabled=false;
-				changeLinkButton.visible=false;*/
+				setUpdateButtonState(false, true);
 			}
 			
 			public function getShortFileName(reqResult:SyncRequestResult):String {
@@ -156,13 +202,19 @@ Warning: after using the visual editor, the mx:Application line below
 				// TODO handle this differently. The link points to a file that's no longer there. We should probably help the user out in this situation by letting them easily relink the file.						
 				//PsStatus.source = missingIconSymbol;
 				statusField1Label.text="";
-				statusField1.text = "The linked file cannot be found.";
+				statusField1.visible=false;
+				/*statusField1Label.text="";
+				statusField1.text = "The linked file cannot be found.";*/
+				linkButton.visible=true;
+				linkButton.label="Linked file not found: Relink it";
+				// TODO change the action here so that it will relink the file.
 				statusField1.toolTip=reqResult.data.uri;
 				//statusField2.text="Linked to: "+getShortFileName(reqResult);
-				statusField2.text="Linked to: "+reqResult.data.relativeURI;
+				statusField2.text="Originally linked to: "+reqResult.data.relativeURI;
 				statusField3.text="";
 				//statusField3.text="Linked: "+formatDate( reqResult.data.linkDate );
-				updateSelectedButton.enabled=false;
+				//updateSelectedButton.enabled=true; // set to true so the user can update it.
+				setUpdateButtonState(true, true);
 				//changeLinkButton.visible=false;
 			}
 			
@@ -173,20 +225,27 @@ Warning: after using the visual editor, the mx:Application line below
 				currentState='default';
 				statusField1Label.text="Linked to: ";
 				//statusField1.text=getShortFileName(reqResult);
-				statusField1.text=reqResult.data.relativeURI;
-				statusField1.toolTip=reqResult.data.uri;
+				statusField1.visible=false;
+				/*statusField1.text="";
+				statusField1.toolTip="";*/
+				linkButton.visible=true;
+				linkButton.label=reqResult.data.relativeURI;
+				linkButton.toolTip=reqResult.data.uri;
 				statusField2.text="Modified: "+ photoshopHelper.formatDate( reqResult.data.fileDate );
-				statusField3.text="";
 				//statusField3.text="Linked: "+ formatDate( reqResult.data.linkDate );
 				// TODO implement this:
 				//changeLinkButton.visible=true;
 				if( reqResult.data.isCurrent == false ) {
-					updateSelectedButton.enabled=true;
+					//updateSelectedButton.enabled=true;
+					setUpdateButtonState(true, true);
+					statusField3.text="Layer is out of date.";
 					//PsStatus.source = modifiedIconSymbol;
 				} else {
 					// Aaron Powers' addition to allow updates even when it's not current.
 					// TODO we should check in more detail, we know that isCurrent is sometimes returning true when an image file has been changed (only returns false correctly for PSD files)
-					updateSelectedButton.enabled=false;
+					//updateSelectedButton.enabled=false;
+					setUpdateButtonState(false, true);
+					statusField3.text="Up to date.";
 					//PsStatus.source = linkedIconSymbol;
 				}
 			}
@@ -227,10 +286,12 @@ Warning: after using the visual editor, the mx:Application line below
 					//photoshopHelper.logIt("LinkDox.mxml/getPsStatus: finished getstatus call");
 					// Reset any descriptions that could affect all items and aren't otherwise set in each one:
 					statusField1.toolTip="";
+					linkButton.label="";
+					linkButton.toolTip="";
+
 					
 					if(reqResult.status!=SyncRequestResult.COMPLETE) {
-						/*if (DEBUG_STARTUP)
-							Alert.show("getActiveLayerInfo() trying again because status="+reqResult.status, "Debug", Alert.OK, Sprite(mx.core.Application.application));*/
+						// Try again because it didn't finish last time.
 						//photoshopHelper.logIt("LinkDox.mxml/getPsStatus: reqResult status is not complete, it's "+reqResult.status);
 						getActiveLayerInfoInAMoment();
 						return;
@@ -249,7 +310,9 @@ Warning: after using the visual editor, the mx:Application line below
 					}
 					
 					linkToButton.enabled=true;
-					updateAllButton.enabled=true;
+					//updateAllButton.enabled=true;
+					//updatePopupMenu.dataProvider[1].enabled=true;
+
 					//photoshopHelper.logIt("LinkDox.mxml/getPsStatus: 2");
 					
 					if( reqResult.data.multipleLayersSelected == true ){
@@ -305,17 +368,17 @@ Warning: after using the visual editor, the mx:Application line below
 				<mx:Label id="errorMessageLabel" text="Error Message Here"/>
 			</mx:AddChild>
 			<mx:SetProperty name="enabled" target="{linkToButton}" value="false"/>
-			<mx:SetProperty name="enabled" target="{updateSelectedButton}" value="false"/>
-			<mx:SetProperty name="enabled" target="{updateAllButton}" value="false"/>
+			<!--<mx:SetProperty name="enabled" target="{updateSelectedButton}" value="false"/>-->
+			<!--<mx:SetProperty name="enabled" target="{updateAllButton}" value="false"/>-->
 			<mx:AddChild position="before" relativeTo="{areaSpacer}">
 				<mx:Label id="errorMessageLabel2" text="Label"/>
 			</mx:AddChild>
 		</mx:State>
 		<mx:State basedOn="Errors" name="MultipleLayersSelected">
 			<mx:SetProperty name="text" target="{errorMessageLabel}" value="Multiple layers are selected."/>
-			<mx:SetProperty name="enabled" target="{updateAllButton}" value="true"/>
+			<!--<mx:SetProperty name="enabled" target="{updateAllButton}" value="true"/>-->
 			<mx:SetProperty name="text" target="{errorMessageLabel2}"
-							value="To update, select just one layer at a time."/>
+							value="Clicking update will update any of them that are linked."/>
 			<mx:SetProperty name="enabled" target="{linkToButton}" value="true"/>
 		</mx:State>
 		<mx:State basedOn="Errors" name="DocumentNotSaved">
@@ -333,26 +396,31 @@ Warning: after using the visual editor, the mx:Application line below
 							value="Selected layer is not linked"/>
 			<mx:SetProperty name="text" target="{errorMessageLabel2}"/>
 			<mx:SetProperty name="enabled" target="{linkToButton}" value="true"/>
-			<mx:SetProperty name="enabled" target="{updateAllButton}" value="true"/>
+			<!--<mx:SetProperty name="enabled" target="{updateAllButton}" value="true"/>-->
 		</mx:State>
 	</mx:states>
-	
   
 	
 	
 	<mx:HBox id="hbox1">
 		<mx:Label id="statusField1Label" fontWeight="bold"/>
+		<mx:LinkButton id="linkButton" fontSize="9" label="LinkButton" color="#0000FF" fontWeight="normal"
+					   textDecoration="underline" click="photoshopHelper.callEditSmartObjectOriginal();"/>
 		<mx:Label id="statusField1" fontSize="9" text="Starting Up..."/>
 	</mx:HBox>
 	<mx:Label id="statusField2" x="5" y="30" fontSize="9" text="..."/>
 	<mx:Label id="statusField3" fontSize="9" text="..."/>
 	<mx:Spacer id="areaSpacer" width="10" height="100%"/>
 	<mx:HBox id="hbox2" verticalGap="8">
-		<mx:Button id="linkToButton" label="New link..." click="photoshopHelper.callNewLink();" fontSize="9"
+		<!--<mx:Button id="linkToButton" label="New link..." click="photoshopHelper.callNewLink();" fontSize="9"
+				   icon="@Embed('assets/icon_New.png')"/>-->
+		<mx:PopUpButton id="linkToButton" label="New link..." click="photoshopHelper.callNewLink();" fontSize="9"
 				   icon="@Embed('assets/icon_New.png')"/>
-		<mx:Button id="updateSelectedButton" label="Update" click="photoshopHelper.callUpdateSelected();"
+		<!--<mx:Button id="updateSelectedButton" label="Update" click="photoshopHelper.callUpdateSelected();"
+				   fontSize="9"/>-->
+		<mx:PopUpButton id="updateSelectedButton" label="Update" click="photoshopHelper.callUpdateSelected();"
 				   fontSize="9"/>
-		<mx:Button id="updateAllButton" label="Update All" click="photoshopHelper.callUpdateAll();" fontSize="9"/>
+		<!--<mx:Button id="updateAllButton" label="Update All" click="photoshopHelper.callUpdateAll();" fontSize="9"/>-->
 		<!--<mx:Button id="changeLinkButton" label="Change link..." click="callUpdateAll();" fontSize="9"
 				   icon="@Embed('assets/P_ReLink_26x12_N.png')"/>-->
 	</mx:HBox>

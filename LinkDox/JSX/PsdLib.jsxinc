@@ -61,6 +61,20 @@ function getSelectedLayersCount(){
 	return res;
 }
 
+
+
+/**********************************
+	* PsdLib.isLinkableFromFile(fileName)
+	* Pass in a file name and it will return:
+	*   true: if the file format supports linking, e.g. PSD & PSD
+	*   false: if the file format is anything else
+	*/
+PsdLib.isLinkableFromFile = function(fileName) {
+	// Regexp is case sensitive, so to make this easier, we lowercase it.
+	fileName= fileName.toLowerCase();
+	return fileName.match(/.+\.psd$/) || fileName.match(/.+\.psb$/) ;
+}
+
 /**********************************
 	* PsdLib.isMultiLayer(fileName)
 	* Pass in a file name and it will return:
@@ -192,6 +206,43 @@ function getVersion() {
 	return xml;
 }
 
+/******************************
+	* getSelectedLayersIndex()
+	* Returns an array of selected indexes.
+	* Credits to Mike Hale for coming up with this. It's posted on his PS-scripts board: http://www.ps-scripts.com/bb/viewtopic.php?f=13&t=2841
+	*/
+PsdLib.prototype.getSelectedLayersIndex = function() {
+	var selectedLayers = new Array;
+	var ref = new ActionReference();
+	ref.putEnumerated( charIDToTypeID("Dcmn"), charIDToTypeID("Ordn"), charIDToTypeID("Trgt") );
+	var desc = executeActionGet(ref);
+	if( desc.hasKey( stringIDToTypeID( 'targetLayers' ) ) ){
+		desc = desc.getList( stringIDToTypeID( 'targetLayers' ));
+		var c = desc.count 
+		var selectedLayers = new Array();
+		for(var i=0;i<c;i++){
+			try{ 
+				activeDocument.backgroundLayer;
+				selectedLayers.push(  desc.getReference( i ).getIndex() );
+			} catch(e) {
+				selectedLayers.push(  desc.getReference( i ).getIndex()+1 );
+			}
+		}
+	} else {
+		var ref = new ActionReference(); 
+		ref.putProperty( charIDToTypeID("Prpr") , charIDToTypeID( "ItmI" )); 
+         ref.putEnumerated( charIDToTypeID("Lyr "), charIDToTypeID("Ordn"), charIDToTypeID("Trgt") );
+         try { 
+			activeDocument.backgroundLayer;
+			selectedLayers.push( executeActionGet(ref).getInteger(charIDToTypeID( "ItmI" ))-1);
+         }catch(e){
+			selectedLayers.push( executeActionGet(ref).getInteger(charIDToTypeID( "ItmI" )));
+         }
+      }
+      return selectedLayers;
+}
+
+// Credits to Mike Hale for coming up with this. It's posted on his PS-scripts board.
 PsdLib.prototype.makeActiveByIndex = function(index, forceVisible) {
 	try {
 		var desc = new ActionDescriptor();
@@ -215,15 +266,21 @@ PsdLib.prototype.getNumberOfLayers = function() {
 }
 
 PsdLib.prototype.isValidActiveLayer = function(index) {
-	var propName = stringIDToTypeID( 'layerSection' );// can't replace
-	var ref = new ActionReference(); 
-	ref.putProperty( 1349677170 , propName);// TypeID for "Prpr"
-	// 'Lyr ", index
-	ref.putIndex( 1283027488, index );
-	var desc =  executeActionGet( ref );
-	var type = desc.getEnumerationValue( propName );
-	var res = typeIDToStringID( type ); 
-	return res == 'layerSectionEnd' ? false:true;
+	try {
+		var propName = stringIDToTypeID( 'layerSection' );// can't replace
+		var ref = new ActionReference(); 
+		ref.putProperty( 1349677170 , propName);// TypeID for "Prpr"
+		// 'Lyr ", index
+		ref.putIndex( 1283027488, index );
+		var desc =  executeActionGet( ref );
+		var type = desc.getEnumerationValue( propName );
+		var res = typeIDToStringID( type ); 
+		return res == 'layerSectionEnd' ? false:true;
+	} catch (e) {
+		// The one time I got this during production (just now), it was my Empty.psd file that has only one layer -- a background layer which wasn't a valid target.
+		logIt("PsdLib.isValidActiveLayer: got an exception when trying to check, so we'll say it's not a valid layer.");
+		return false;
+	}
 };
 
 
@@ -236,4 +293,337 @@ PsdLib.isDocumentStillOpen = function(docRef) {
 		//$.writeln("e="+e);
 		return false;
 	}
+}
+
+
+/***************
+	* This function doesn't work yet. It needs to include some sort of trimming.
+	* Get the true pixel width and height of a layer. This is harder than it sounds because the bounds property doesn't have the true width or height in pixels.
+	* 
+	*/
+/*PsdLib.getLayerTrueSize = function() {
+	var startRulerUnits = app.preferences.rulerUnits;
+	app.preferences.rulerUnits = Units.PIXELS;	
+	
+	var idMk = charIDToTypeID( "Mk  " );
+    var desc203 = new ActionDescriptor();
+    var idnull = charIDToTypeID( "null" );
+        var ref102 = new ActionReference();
+        var idDcmn = charIDToTypeID( "Dcmn" );
+        ref102.putClass( idDcmn );
+    desc203.putReference( idnull, ref102 );
+    var idUsng = charIDToTypeID( "Usng" );
+        var ref103 = new ActionReference();
+        var idLyr = charIDToTypeID( "Lyr " );
+        var idOrdn = charIDToTypeID( "Ordn" );
+        var idTrgt = charIDToTypeID( "Trgt" );
+        ref103.putEnumerated( idLyr, idOrdn, idTrgt );
+    desc203.putReference( idUsng, ref103 );
+    var idVrsn = charIDToTypeID( "Vrsn" );
+    desc203.putInteger( idVrsn, 5 );
+	executeAction( idMk, desc203, DialogModes.NO );
+	
+	var size=[app.activeDocument.width, app.activeDocument.height];
+	
+	app.activeDocument.close(SaveOptions.DONOTSAVECHANGES);
+	
+	app.preferences.rulerUnits = startRulerUnits;
+	return size;
+}*/
+
+
+/***************
+	* TODO this method has major weaknesses. I'm hoping we can find something better.
+	*
+	*/
+PsdLib.resizeLayer = function(targetWidth,targetHeight) {
+
+	
+	/**Restore the size
+			This iterative method, thought commented below like it works, doesn't work either.
+			
+			For some reason, Photoshop's resize method doesn't actually work off the percentage you'd expect. I'm not quite sure what's going wrong with this...
+			However, there is this awkward workaround.
+			So I had to do two things to make this work:
+			(1) When resizing, we don't rescale exactly to the % you'd expect to scale to.
+			(2) I use iterations -- so if it's off by a pixel due to a rounding error, it will rescale again until it's perfect or we give up after 9 tries.
+			
+			I've managed to get it down to work in 1 iteration on most of my tests.
+			However, in at least one test left, SmallSizeLinkedToLoremIpsum.psd it still takes 8 iterations. So this is still necessary.
+			In those iterations, the first scall down doesn't scale down far enough (by 1 pixel), the next scales down too far, and the rest scale up not enough. Yuck.
+			*/
+
+		for (var i=0; i<9; i++) {
+			logIt("\PsdLib.resizeLayer: count="+i+":");
+			var newBounds = PsdLib.getLayerBounds();
+			/*var newX=app.activeDocument.activeLayer.bounds[0].as("pixels");
+			var newY=app.activeDocument.activeLayer.bounds[1].as("pixels");
+			var newXRight = app.activeDocument.activeLayer.bounds[2].as("pixels");
+			var newYBottom=app.activeDocument.activeLayer.bounds[3].as("pixels");
+			logIt("\t\tLine 10");
+			var newWidth=newXBottom-newX;
+			var newHeight=newYBottom-newY;
+			logIt("\t\tLine 20");*/
+			if (targetWidth==newBounds.width && targetHeight==newBounds.height) {
+				// don't do any resizing.
+				logIt("\t\tdone resizing. width="+newBounds.width+", height="+newBounds.height);
+				//alert("count="+i+": done resizing.");
+				return;
+			}
+			if (newBounds.width==0||newBounds.height==0) {
+				// This is an indication that the layer.resize failed. So, undo the last change:
+				docRef.activeHistoryState = docRef.historyStates[docRef.historyStates.length-2];
+				// Then return and don't do any more resizing:
+				return;
+			}
+		
+			var rescaleWidth=100;//(targetWidth/newBounds.width)*100;
+			var rescaleHeight=100;//(targetHeight/newBounds.height)*100;
+			logIt("\t\tLine 30");
+			// When we do nothing in the next block, it would suceed at count=8. But we can do better.
+			// When I set it to divide by 1.66666666666 below if it's greater, then it works in only one iteration.
+			/*if (targetWidth==newBounds.width)
+				rescaleWidth=100;
+			else if (targetWidth<newBounds.width)
+				rescaleWidth=rescaleWidth/1.66666666666;
+			else /*if targetWidth>newBounds.width*/
+				rescaleWidth=(targetWidth/newBounds.width)*100;
+
+			/*if (targetHeight==newBounds.height)
+				rescaleHeight=100;
+			else if (targetHeight<newBounds.height)
+				rescaleHeight=rescaleHeight/1.66666666666;
+			else /*if targetHeight>newBounds.height*/
+				rescaleHeight=(targetHeight/newBounds.height)*100;
+				
+			logIt("\t\twidth="+newBounds.width+" (target="+targetWidth+")\n"+
+				"\t\t\theight="+newBounds.height+" (target="+targetHeight+")\n"+
+				"\t\t\t... so.... \n"+
+				"\t\t\trescaleWidth="+rescaleWidth+"\n"+
+				"\t\t\trescaleHeight="+rescaleHeight);
+			logIt("\t\tLine 99");
+			app.activeDocument.activeLayer.resize(rescaleWidth, rescaleHeight, AnchorPosition.MIDDLECENTER);
+			
+			
+			var afterResizeBounds = PsdLib.getLayerBounds();
+			/* In some cases, e.g. with tested layer comps, this rescaling actually sends sizes in the opposite direction it should go.
+				If that's the case, we need to detect it, undo the change, and stop iterating, even if it means leaving this at an imperfect size.
+				*/
+			if (targetWidth>newBounds.width && afterResizeBounds.width<newBounds.width
+					// Above: Width should be growing. But width shrunk.
+				|| targetWidth<newBounds.width && afterResizeBounds.width>newBounds.width
+					// Above: Width should be shrinking. But width grew.
+				|| targetHeight>newBounds.height && afterResizeBounds.height<newBounds.height
+					// Above: Height should be growing. But height shrunk.
+				|| targetHeight<newBounds.height && afterResizeBounds.height>newBounds.height
+					// Above: Height should be shrinking. But height grew.
+				) {
+				// These are all the indications that the layer.resize is failing. So, undo the last change:
+				app.activeDocument.activeHistoryState = app.activeDocument.historyStates[app.activeDocument.historyStates.length-2];
+				// Then return and don't do any more resizing:
+				return;
+			}
+			logIt("\t\tLine 100");
+		}
+}
+	
+
+/*************
+	* The Photoshop ArtLayer.resize call does not work on smart objects -- it can resize in arbitrary ways. 
+	* To see how, try out Scratch_TestResizeIssue.jsx and try the commented out versions of resize... They all fail in various interesting ways.
+	* 
+	* This method works by copying the layer into a new file, resizing that file, and then copying it back. It turned out to be the only way.
+	*/
+PsdLib.resizeLayerByCopyingIntoNewDocument = function(targetWidth,targetHeight) {
+	
+	
+	// Save info we'll need
+	var originalDocName = app.activeDocument.name;
+	var originalLayer = app.activeDocument.activeLayer;
+	
+	
+
+
+	// =======================================================
+	// Duplicate layer to new document
+	var idMk = charIDToTypeID( "Mk  " );
+    var desc203 = new ActionDescriptor();
+    var idnull = charIDToTypeID( "null" );
+        var ref102 = new ActionReference();
+        var idDcmn = charIDToTypeID( "Dcmn" );
+        ref102.putClass( idDcmn );
+    desc203.putReference( idnull, ref102 );
+    var idUsng = charIDToTypeID( "Usng" );
+        var ref103 = new ActionReference();
+        var idLyr = charIDToTypeID( "Lyr " );
+        var idOrdn = charIDToTypeID( "Ordn" );
+        var idTrgt = charIDToTypeID( "Trgt" );
+        ref103.putEnumerated( idLyr, idOrdn, idTrgt );
+    desc203.putReference( idUsng, ref103 );
+    var idVrsn = charIDToTypeID( "Vrsn" );
+    desc203.putInteger( idVrsn, 5 );
+	executeAction( idMk, desc203, DialogModes.NO );
+
+	app.activeDocument.resizeImage(targetWidth,targetHeight);
+
+
+	// =======================================================
+	// Copy it back: notice the layer and file names below.
+	var idDplc = charIDToTypeID( "Dplc" );
+    var desc208 = new ActionDescriptor();
+    var idnull = charIDToTypeID( "null" );
+        var ref108 = new ActionReference();
+        var idLyr = charIDToTypeID( "Lyr " );
+        var idOrdn = charIDToTypeID( "Ordn" );
+        var idTrgt = charIDToTypeID( "Trgt" );
+        ref108.putEnumerated( idLyr, idOrdn, idTrgt );
+    desc208.putReference( idnull, ref108 );
+    var idT = charIDToTypeID( "T   " );
+        var ref109 = new ActionReference();
+        var idDcmn = charIDToTypeID( "Dcmn" );
+        ref109.putName( idDcmn, originalDocName );
+    desc208.putReference( idT, ref109 );
+    var idNm = charIDToTypeID( "Nm  " );
+    desc208.putString( idNm, app.activeDocument.activeLayer.name );
+    var idVrsn = charIDToTypeID( "Vrsn" );
+    desc208.putInteger( idVrsn, 5 );
+	executeAction( idDplc, desc208, DialogModes.NO );
+
+
+	// Close duplicated document:
+	app.activeDocument.close(SaveOptions.DONOTSAVECHANGES);
+	originalLayer.remove();
+
+}
+
+PsdLib.getLayerBounds = function() {
+	var bounds = new Object();
+	bounds.left=app.activeDocument.activeLayer.bounds[0].as("pixels");
+	bounds.top=app.activeDocument.activeLayer.bounds[1].as("pixels");
+	bounds.right=app.activeDocument.activeLayer.bounds[2].as("pixels");
+	bounds.bottom=app.activeDocument.activeLayer.bounds[3].as("pixels");
+	bounds.width=bounds.right-bounds.left;
+	bounds.height=bounds.bottom-bounds.top;
+	return bounds;
+}
+
+/*********
+	*
+	* Assumes that a smart object is currently selected as the activeLayer.
+	*/
+PsdLib.getSmartObjectInternalSize = function() {
+	// =======================================================
+	var idplacedLayerEditContents = stringIDToTypeID( "placedLayerEditContents" );
+    var desc17 = new ActionDescriptor();
+	executeAction( idplacedLayerEditContents, desc17, DialogModes.NO );
+	
+	var size=new Object();
+	size.width=app.activeDocument.width.as("pixels");
+	size.height=app.activeDocument.height.as("pixels");
+	
+	app.activeDocument.close(SaveOptions.DONOTSAVECHANGES);
+	return size;
+}
+
+
+PsdLib.getLargerNumberOf = function(num1, num2) {
+	if (num1>num2)
+		return num1;
+	return num2;
+}
+
+PsdLib.getSmallerNumberOf = function(num1, num2) {
+	if (num1<num2)
+		return num1;
+	return num2;
+}
+
+/***********************************
+* Get bounds of a set of layers
+* Warning: This appears to be ignoring effects on the bounds we're getting. Which means that if there are special layers with effects, we need to find some way to flatten first.
+*/
+PsdLib.getBoundsOfTheseLayers = function(layersToSearch) {
+	//var originalActiveLayer=activeDocument.activeLayer;
+	var bounds = new Object();
+	bounds.left=null;
+	bounds.right=null;
+	bounds.top=null;
+	bounds.bottom=null;
+	
+	for (var i=0; i<layersToSearch.length; i++) {
+		// next variable is for debugging use only:
+		if (!layersToSearch[i].visible)
+			continue; // it's invisible, so it doesn't count towards the bounds.
+		var layerName=layersToSearch[i].name;
+		//activeDocument.activeLayer=layersToSearch[i];
+		if (bounds.left==null) {
+			bounds.left=layersToSearch[i].bounds[0].as("pixels");
+			bounds.top=layersToSearch[i].bounds[1].as("pixels");
+			bounds.right=layersToSearch[i].bounds[2].as("pixels");
+			bounds.bottom=layersToSearch[i].bounds[3].as("pixels");
+			continue;
+		}
+		
+		bounds.left=PsdLib.getSmallerNumberOf(bounds.left,layersToSearch[i].bounds[0].as("pixels"));
+		bounds.top=PsdLib.getSmallerNumberOf(bounds.top,layersToSearch[i].bounds[1].as("pixels"));
+		bounds.right=PsdLib.getLargerNumberOf(bounds.right,layersToSearch[i].bounds[2].as("pixels"));
+		bounds.bottom=PsdLib.getLargerNumberOf(bounds.bottom,layersToSearch[i].bounds[3].as("pixels"));
+	}
+
+	// We can get bounds that are bigger than the size of the document. This is unfortunate since it's not true once trimmed to the document (the way we're using it).
+	// So, limit the size the the size of the document.
+	if (bounds.left<0)
+		bounds.left=0;
+	if (bounds.top<0)
+		bounds.top=0;
+	if (bounds.bottom>activeDocument.height.as("pixels"))
+		bounds.bottom=activeDocument.height.as("pixels");
+	if (bounds.right>activeDocument.width.as("pixels"))
+		bounds.right=activeDocument.width.as("pixels");
+
+	bounds.width=bounds.right-bounds.left;
+	bounds.height=bounds.bottom-bounds.top;
+	
+	// Reset to the original active layer.
+	//activeDocument.activeLayer=originalActiveLayer;
+	return bounds;
+}
+
+PsdLib.getBoundsOfAllLayers = function() {
+	var wasMerged=false;
+	// Merge visible layers so that it will rasterize all effects all in one go. (Rasterize would have to be applied and undone to every single layer, whereas flatten includes invisible layers like the background).
+	if (activeDocument.layers.length>1) {
+		activeDocument.mergeVisibleLayers();
+		 wasMerged=true;
+	}
+	var bounds= PsdLib.getBoundsOfTheseLayers(activeDocument.layers);
+
+	// Undo that merge of visible layers from above.
+	if (wasMerged)
+		app.activeDocument.activeHistoryState = app.activeDocument.historyStates[app.activeDocument.historyStates.length-2];
+	
+	return bounds;
+}
+
+/*********
+	*
+	* Assumes that a smart object is currently selected as the activeLayer.
+	*/
+PsdLib.getSmartObjectInternalBounds = function() {
+	// We can't ask the user whether they want to edit the original when we make this action happen! So we turn that off:
+	debug_EditedSOHelper_autoAnswerOpenSO=false;
+	
+	
+	// =======================================================
+	var idplacedLayerEditContents = stringIDToTypeID( "placedLayerEditContents" );
+    var desc17 = new ActionDescriptor();
+	executeAction( idplacedLayerEditContents, desc17, DialogModes.NO );
+	
+	var bounds = PsdLib.getBoundsOfAllLayers();
+	bounds.docWidth=app.activeDocument.width.as("pixels");
+	bounds.docHeight=app.activeDocument.height.as("pixels");
+	
+	app.activeDocument.close(SaveOptions.DONOTSAVECHANGES);
+	debug_EditedSOHelper_autoAnswerOpenSO=null;
+	return bounds;
 }

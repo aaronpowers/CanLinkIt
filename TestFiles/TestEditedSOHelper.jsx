@@ -23,6 +23,7 @@ function basicEditedSOTest1() {
 
 }
 function basicEditedSOTest2() {
+	
 	app.open(testAssembledFile2);
 	// Since we're running this as a raw test, we have to set this ourselves. Normally this would be set via a call to CanLinkIt.getLayerInfo() from the Flash MXML, but we're skipping that to make this a unit test.
 	canLinkIt.editedSOHelper.lastSelectedLayer=activeDocument.activeLayer;
@@ -30,12 +31,20 @@ function basicEditedSOTest2() {
 	// Make sure this layer needs to be updated, so that the tests later will be valid. (this isn't strictly necessary for this activity, just for the test itself that we're running).
 	checkForLayerNeedToBeUpdated(activeDocument.activeLayer.name);
 	
-	canLinkIt.editedSOHelper.debug_autoAnswerConfirm=false;
+	debug_EditedSOHelper_autoAnswerOpenSO=false;
 
 	assertEquals(false, canLinkIt.editedSOHelper.userEditedSO(), "TestEditedSOHelper.jsx/basicEditedSOTest2(): 1: We're faking the user's answer to be false, so we should get false here.");
 	assertXMLHasProperty("boolean", false, canLinkIt.editedSOHelper.userEditedSOXML(), "TestEditedSOHelper.jsx/basicEditedSOTest2(): 2: We're faking the user's answer to be false, so we should get false here.");
 
-	canLinkIt.editedSOHelper.debug_autoAnswerConfirm=true;
+	// we no longer do any of this stuff.
+	if (true) {
+		app.activeDocument.close(SaveOptions.DONOTSAVECHANGES);
+		return;
+	}
+
+
+
+	/*debug_EditedSOHelper_autoAnswerOpenSO=true;
 	assertEquals(true, canLinkIt.editedSOHelper.userEditedSO(), "TestEditedSOHelper.jsx/basicEditedSOTest2(): 3: We're faking the user's answer to be true, so we should get true here after successful execution of the user's command.");
 	assertEquals(app.documents.length, canLinkIt.editedSOHelper.numDocsBeforeEditSO, "TestEditedSOHelper.jsx/basicEditedSOTest2(): 4: Number of docs open should match here.");
 
@@ -58,7 +67,9 @@ function basicEditedSOTest2() {
 		"TestEditedSOHelper.jsx/basicEditedSOTest2(): 10: The getEditItemsLinkedTo should return the appropriate information.");
 
 	// Simulate a save to get it to update.
-	assertEquals(true, canLinkIt.editedSOHelper.notifySaved(), "TestEditedSOHelper.jsx/basicEditedSOTest2(): 20: If we claim it's been saved, it should successfully update.");
+	
+	if (false) // Turning off since we're turning this feature off.
+		assertEquals(true, canLinkIt.editedSOHelper.notifySaved(), "TestEditedSOHelper.jsx/basicEditedSOTest2(): 20: If we claim it's been saved, it should successfully update.");
 	
 	
 	app.activeDocument.close(SaveOptions.DONOTSAVECHANGES);
@@ -66,9 +77,10 @@ function basicEditedSOTest2() {
 	
 	// Now the original document is the only one open. Let's make sure it got updated.
 	// Make sure this layer needs to be updated, so that the tests later will be valid. (this isn't strictly necessary for this activity, just for the test itself that we're running).
-	checkForLayerIsUpToDate(activeDocument.activeLayer.name);
+	if (false) // Turning off since we're turning this feature off.
+		checkForLayerIsUpToDate(activeDocument.activeLayer.name);
 	
-	app.activeDocument.close(SaveOptions.DONOTSAVECHANGES);
+	app.activeDocument.close(SaveOptions.DONOTSAVECHANGES);*/
 }
 
 function testEditedSOEquals() {
@@ -93,5 +105,5 @@ testEditedSOEquals();
 basicEditedSOTest1();
 basicEditedSOTest2();
 
-$.writeln("\n\n\n"+errorMessages+"\n"+
+$.writeln(errorMessages+"\n"+
 "TestEditedSOHelper.jsx tests are complete. total of errors: "+errorCount);

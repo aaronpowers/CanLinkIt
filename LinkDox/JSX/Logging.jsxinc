@@ -30,6 +30,7 @@ var deleteLogEachLaunch=true;
 //////////////////////////////////////////////////////////////////////////////*/
 
 var DefaultLogFile = new File(/* Folder.desktop*/Folder.temp + "/CanLinkIt.log" );
+var useWritelnToo=false;
 
 Logger = function ( inFile ) {
 	// member properties
@@ -89,6 +90,8 @@ function logIt( inMessage ) {
 		if (logger==null)
 			logger = new Logger();
 		var b = decodeURIComponent( inMessage );
+		if (useWritelnToo)
+			$.writeln(b);
 		logger.log(new Date()+"\t");
 		logger.log( b +"\n");
 	}

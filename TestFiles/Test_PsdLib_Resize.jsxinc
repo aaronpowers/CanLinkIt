@@ -1,0 +1,73 @@
+﻿/*********************************************
+Copyright 2011 Aaron Powers
+All Rights Reserved
+*/
+/******************
+ * 
+ * To run this test:
+ * (1) Launch this file in ExtendScript Toolkit
+ * (2) If your files are stored somewhere besides in our standard path, you may have to edit the file "DeveloperVariables.jsx".
+ * (3) Press F5
+ * (3) Look at ExtendScript's "Javascript Console" for a summary -- if all went well, it should say "Number of errors: 0" at the bottom.
+ */
+
+// Include the folder we keep all JSX files in:
+#includepath "../LinkDox/JSX"
+#include "CanLinkIt.jsx"
+#include "UnitTestLib.jsxinc"
+#include "TestFiles.jsxinc"
+
+/*Because of the following line, it's no longer necessary to do change a dropdown in extenscript, by going to just above the top of this script, change the dropdown from 
+	"ExtendScript Toolkit CS5" to one of the "Adobe Photoshop" selections*/
+#target photoshop
+
+// TEST TODO
+// test multipleLayersSelected
+
+// Note: This test relies on both PsdLib and CanLinkIt, which is why it's separate from the other PsdLib tests.
+
+function testResize() {
+	var startRulerUnits = app.preferences.rulerUnits;
+	app.preferences.rulerUnits = Units.PIXELS;
+
+	// TODO test updating a link to a layer comp.
+	var fileInsertLinkInto=new File(rootPath+endOfPath+"Files/LayerComps/LinkedToThreeLayerComps.psd");
+	var layerNames = ["HasLayerComps-LayerComp1", "HasLayerComps-LayerComp2", "HasLayerComps-LayerComp3"];
+	app.open(fileInsertLinkInto);
+
+	var targetWidth=100;
+	var targetHeight=110;
+	for (var i=0; i<layerNames.length; i++) {
+		var layerRef = makeLayerNamedActive(layerNames[i]);
+		PsdLib.resizeLayer(targetWidth,targetHeight);
+		// I don't know why but I just can't read the width and height. But I know it's right based on manual testing... Wierd.
+		// That inability to read may be part of my problem with rescaling them.
+		/*var LB = activeDocument.activeLayer.bounds;
+		for (var j=0; j<4; j++)
+			$.writeln("LB["+j+"]="+LB[j]);
+		var newWidth=activeDocument.activeLayer.bounds[2].as("pixels");
+		var newHeight=activeDocument.activeLayer.bounds[3].as("pixels");
+
+		assertEquals(100,newWidth,"Width should have been rescaled.");
+		assertEquals(110,newHeight,"Height should have been rescaled.");*/
+		// Make sure it still has the XMP info:
+		checkForLayerNeedToBeUpdated(layerNames[i]);
+		targetWidth+=10;
+		targetHeight-=10;
+	}
+	
+	app.activeDocument.close(SaveOptions.DONOTSAVECHANGES);	
+	app.preferences.rulerUnits = startRulerUnits;
+
+	
+}
+
+closeAllDocuments();
+
+testResize();
+
+
+
+// The next line will show up in the JavaScript Console in ExtendScript Toolkit, so it works to check on errors:
+$.writeln(errorMessages+"\n"+
+"Test_PsdLib_Resize.jsxinc tests are complete. Total errors: "+errorCount);

@@ -1,0 +1,227 @@
+﻿/*********************************************
+Copyright 2011 Aaron Powers
+All Rights Reserved
+
+Action_LinkToLayerComp.jsxinc
+*/
+#target photoshop
+
+
+function Action_LinkToLayerComp() {
+}
+
+/**************
+	This is the main action for this file. It uses the rest of the functions.
+	*/
+Action_LinkToLayerComp.newLinkToLayerComp=function() {
+	// pick the file.
+	try {
+		var linkedFile = File.openDialog ( 'Open the file to link to', undefined, false);
+		if( linkedFile == undefined ) {
+			// User Cancelled.
+			return;
+		}
+		//this.newLinkTo(linkedFile);
+	} catch (e) {
+		logIt("Action_LinkToLayerComp.linkToLayerComp: "+e);
+		if (typeof BREAK_ON_UNEXPECTED!= "undefined") $.bp();
+	}
+	
+	//  open the file
+	// check if the referenced file is open
+	var fileWasOpen=false;
+	var docToLinkInto=app.activeDocument;
+	var referencedDocument=null;
+	for (var i=0; i<app.documents.length; i++) {
+		if (app.documents[i].fullName==linkedFile.toString()) {
+			fileWasOpen=true;
+			referencedDocument=app.documents[i];
+			break; // no need to search any more, we found it.
+		}
+	}
+
+	// Only open the file if it's not already open:
+	if (referencedDocument==null)
+		referencedDocument = app.open(linkedFile);
+	
+	var layerCompName = this.pickLayerCompInThisFile();
+	if (layerCompName==null)
+		return; // cancelled or failed.
+
+	// link to that file.
+	var result=this.newLinkToSpecificLayerComp(docToLinkInto,linkedFile,layerCompName);
+	
+	if (!fileWasOpen)
+		// close without prompting about changes, since it was closed when we started.
+		// Note that part of the reason we do this without prompting about changes is because we could have changed the layer comps above.
+		referencedDocument.close(SaveOptions.DONOTSAVECHANGES);
+		//referencedDocument.close(SaveOptions.PROMPTTOSAVECHANGES); // we prompt if it was already open.
+		
+	if (result!=null) {
+		return result;
+	}
+
+}
+
+/******
+	*
+	* Assumes that the docToLinkInto and linkedFile are both already open.
+	*/
+Action_LinkToLayerComp.newLinkToSpecificLayerComp=function(docToLinkInto, linkedFile,layerCompName) {
+	// link to that file.
+	// Switch back to the original file so we can load into it:
+	app.activeDocument=docToLinkInto;
+	var succeeded = loadLinkedFiles.loadFileIntoNewSmartLayer(linkedFile,layerCompName);
+		
+	if (succeeded) {
+		// success! save the information into a link:
+		return linksXMP.saveLinkInfoFor(linkedFile,app.activeDocument.activeLayer, layerCompName);
+	}
+	return null;
+}
+
+Action_LinkToLayerComp.pickLayerCompInThisFile=function() {
+	if (app.activeDocument.layerComps.length==0) {
+		// there are no layer comps in this file.
+		alert("There are no layer comps in this file to link to.");
+		return null;
+	}
+
+	//logIt("Action_LinkToLayerComp.pickLayerCompInThisFile():(3)");
+	var layerCompName=Action_LinkToLayerComp.askForALayerComp();
+	//logIt("\t1");
+	if (layerCompName==null)
+		// The user cancelled.
+		return null;
+	Action_LinkToLayerComp.applyLayerCompNamed(layerCompName);
+	//logIt("\tEnd");
+	// Also need to link and save this information in the link.
+	return layerCompName;
+}
+
+Action_LinkToLayerComp.applyLayerCompNamed=function(layerCompName) {
+	docRef = app.activeDocument;
+	
+	var compsCount = docRef.layerComps.length;
+	if ( compsCount <= 1 ) {
+		if ( app.playbackDisplayDialogs != DialogModes.NO) {
+			alert ( "The layer comp, \""+layerCompName+"\" could not be found, because there are no layer comps in the document anymore." );
+		}
+		return false;//quit, returning 'cancel' (dont localize) makes the actions palette not record our script
+	}	
+	
+	for (var compsIndex = 0; compsIndex < compsCount; compsIndex++ ) {
+		var compRef = docRef.layerComps[ compsIndex ];
+		//if (exportInfo.selectionOnly && !compRef.selected) continue; // selected only
+		if (compRef.name==layerCompName) {
+			compRef.apply();
+			return true;
+		}
+		//$.writeln("Layer comp: "+compRef);
+		//$.writeln("\tname: "+compRef.name);
+	}
+	
+	//logIt("Bug? applyLayerCompNamed('"+layerCompName+"') did not find any layer comps with that name.");
+	alert ( "The layer comp, \""+layerCompName+"\" is not in this file anymore." );
+	// There is no longer a layer comp named this in that file.
+	return false;
+	
+}
+
+Action_LinkToLayerComp.getLayerCompsNames=function() {
+	docRef = app.activeDocument;
+	
+	var compsCount = docRef.layerComps.length;
+	if ( compsCount <= 1 ) {
+		if ( app.playbackDisplayDialogs != DialogModes.NO) {
+			alert ( "The layer comp, \""+layerCompName+"\" could not be found, because there are no layer comps in the document anymore." );
+		}
+		return 'cancel'; // quit, returning 'cancel' (dont localize) makes the actions palette not record our script
+	}	
+	
+	var layerCompsNames = new Array();
+	for (var compsIndex = 0; compsIndex < compsCount; compsIndex++ ) {
+		var compRef = docRef.layerComps[ compsIndex ];
+		//if (exportInfo.selectionOnly && !compRef.selected) continue; // selected only
+		//compRef.apply();
+		//$.writeln("Layer comp: "+compRef);
+		layerCompsNames.push(compRef.name);
+		//$.writeln("\tname: "+compRef.name);
+	}
+	return layerCompsNames;
+}
+
+/*******************
+	* askForALayerComp()
+	* Returns the name of a user-selected layer comp.
+	*/
+Action_LinkToLayerComp.askForALayerComp=function() {
+	res = "dialog { \
+				s: StaticText { text:'Which layer comp do you want to link to?', alignment: 'left' },\
+				whichInfo: ListBox { alignment:'left' }, \
+				buttons: Group { orientation: 'row', alignment: 'right', \
+					okBtn: Button { text:'OK', properties:{name:'ok'} }, \
+					cancelBtn: Button { text:'Cancel', properties:{name:'cancel'} } \
+				} \
+			}";
+	win = new Window (res);
+	var names = Action_LinkToLayerComp.getLayerCompsNames();
+	/* Ideally, we'd also show the selected layer comp in the background... However, Photoshop doesn't refresh. This code branch has no effect except to visually change the selection (until the actual window has completed).
+	win.whichInfo.onChange = function () {
+		if (this.selection != null) {
+			$.writeln(this.selection.toString());
+			applyLayerCompNamed(this.selection.toString());
+		}
+	}*/
+	for (var i=0; i<names.length; i++) {
+		var item = win.whichInfo.add ('item', names[i]);
+	}
+	/*var item = win.whichInfo.add ('item', 'Personal Info');
+	//item.group = win.allGroups.info;
+	item = win.whichInfo.add ('item', 'Work Info');*/
+	//item.group = win.allGroups.workInfo;
+	
+	// Default to the one currently selected by the user, if there is one.
+	var currentSelection = Action_LinkToLayerComp.getIndexOfUserSelectedLayerComp();
+	if (currentSelection==null) {
+		// so just select the first one by default.
+		win.whichInfo.selection = win.whichInfo.items[0];
+	} else {
+		win.whichInfo.selection = win.whichInfo.items[currentSelection];
+	}
+	
+	win.center();
+	if (win.show()==2) {
+		// the user cancelled!
+		return null;
+	}
+	
+	// The dialog is closed now. So...
+	return win.whichInfo.selection.toString();
+}
+
+/***************
+	This only returns what the user has currently selected, not our current layer comp.
+	*/
+Action_LinkToLayerComp.getIndexOfUserSelectedLayerComp=function() {
+	docRef = app.activeDocument;
+	
+	var compsCount = docRef.layerComps.length;
+	if ( compsCount <= 1 ) {
+		if ( app.playbackDisplayDialogs != DialogModes.NO) {
+			return null;// for "None selected";
+		}
+		//return 'cancel'; // quit, returning 'cancel' (dont localize) makes the actions palette not record our script
+	}	
+	
+	
+	for (var compsIndex = 0; compsIndex < compsCount; compsIndex++ ) {
+		var compRef = docRef.layerComps[ compsIndex ];
+		if (compRef.selected) 
+			return compsIndex;
+	}	
+	
+}
+
+logIt("Action_LinkToLayerComp.jsxinc was included.");
+//Action_LinkToLayerComp.linkToLayerComp();

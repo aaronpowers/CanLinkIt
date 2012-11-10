@@ -1,0 +1,251 @@
+﻿/*********************************************
+Copyright 2011 Aaron Powers
+All Rights Reserved
+
+LinksXMP.jsxinc
+
+This file (will) hold all the information and methods for accessing layer XMP data for CanLinkIt.
+
+*/
+#target photoshop
+
+XMPObjectTags = {};
+XMPObjectTags.HAS_DOC="hasDoc";
+XMPObjectTags.URI="uri";
+XMPObjectTags.RelativeURI="relativeURI";
+XMPObjectTags.LINKDOCNAME="linkDocName";
+XMPObjectTags.LINK_LAYER_COMP_NAME="linkLayerCompName";
+
+function LinksXMP() {
+	this.AdobeLinksNameSpace= 'http://www.smartobjectlinks.com/1.0/'; // Required for backward compatibility with the Smart Object Links panel.
+	this.xmpHelper = new XMPHelper(this.AdobeLinksNameSpace);
+}
+
+
+/***************************
+	* saveLinkInfoFor(file)
+	* Saves info to XMP for this linked file, to the current layer.
+	* (Assumes that the file was just linked)
+	*
+	*/
+LinksXMP.prototype.saveLinkInfoFor = function(file, layerRef) {
+	this.saveLinkInfoFor(file,layerRef,null);
+}
+
+LinksXMP.prototype.saveLinkInfoFor = function(file, layerRef, toLayerCompName) {
+	//try {
+		var xmp = this.xmpHelper.getXMPFrom(layerRef);
+		xmp.setProperty( this.AdobeLinksNameSpace, XMPObjectTags.URI, decodeURI( file ) );
+		xmp.setProperty( this.AdobeLinksNameSpace, XMPObjectTags.RelativeURI, this.getRelativeFilePath(decodeURI(file)));
+		
+		xmp.setProperty( this.AdobeLinksNameSpace, XMPObjectTags.LINKDOCNAME, decodeURI( file.name ) );
+		xmp.setProperty( this.AdobeLinksNameSpace, "layerName", layerRef.name );
+		// set with xmp date format
+		xmp.setProperty( this.AdobeLinksNameSpace, "fileDate", this.xmpHelper.getDateFileModified( file ) );
+		xmp.setProperty( this.AdobeLinksNameSpace, "fileDateLinked", this.xmpHelper.getDateFileModified( file ) );
+		xmp.setProperty( this.AdobeLinksNameSpace, "linkDate", new XMPDateTime ( new Date() ).toString() );
+		if (toLayerCompName!=null)
+			xmp.setProperty( this.AdobeLinksNameSpace, XMPObjectTags.LINK_LAYER_COMP_NAME, toLayerCompName);
+
+		
+		this.xmpHelper.saveXMP(layerRef, xmp);
+		return true;
+	/*} catch(e) {
+		if (typeof BREAK_ON_UNEXPECTED!= "undefined") $.bp();
+		logIt("LinksXMP.saveLinkInfoFor(): "+e.toString());
+		return false;
+	}*/
+}
+
+/*****************************
+	* LinksXMP.getRelativeFilePath(fileString)
+	*
+	* Pass in a string path to a file.
+	* This will return the location relative to the current path.
+	*
+	*/
+LinksXMP.prototype.getRelativeFilePath = function(filePathString) {
+	// Rework the file name to make a relative version of the file name here
+	var activeFileName = activeDocument.fullName.toString();
+	var relativePathString = filePathString.toString();
+	var numToTrim=0;
+	while (activeFileName.length>0 && relativePathString.length>0 && activeFileName.charAt (numToTrim)==relativePathString.charAt(numToTrim)) {
+		// Trim only at slashes, e.g. only at full folders that are identical:
+		if (activeFileName.charAt(numToTrim)=="/") {
+			numToTrim++; // e.g. if we're at 0, we want to keep from 1 on
+			activeFileName=activeFileName.substr (numToTrim, activeFileName.length-numToTrim);
+			relativePathString=relativePathString.substr (numToTrim, relativePathString.length-numToTrim);
+			numToTrim=0;
+		} else
+			numToTrim++;
+	}
+	logIt("CanLinkIt.setRelativeFilePath: the current open file path is: "+activeDocument.fullName);
+	logIt("CanLinkIt.setRelativeFilePath: the link to file path is:           "+filePathString);
+	
+	logIt("CanLinkIt.setRelativeFilePath: Short Path 1: "+activeFileName);
+	logIt("CanLinkIt.setRelativeFilePath: Short Path 2: "+relativePathString);
+	
+	var countSlashes =0;
+	var index=0;
+	while (index<activeFileName.length) {
+		if (activeFileName.charAt(index)=="/")
+			countSlashes++;
+		index++;
+	}
+	logIt("CanLinkIt.setRelativeFilePath: number of /: "+countSlashes);
+	for (var i=0; i<countSlashes; i++)
+		relativePathString="../"+relativePathString;
+	logIt("CanLinkIt.setRelativeFilePath: relative path: "+relativePathString);
+	return relativePathString;
+}
+
+/***************************
+	* LinksXMP.removeExtraDotDotSlashesFromFilename()
+	*
+	* Specifically for use on a mac, because new File(name) doesn't resolve "MyFolder/../File.psd" to just "File.psd", as it should. That messes up all our comparisons, so we use this before we create new files from paths that might include "../"
+	*
+	*/
+LinksXMP.prototype.removeExtraDotDotSlashesFromFilename = function(filePathString) {
+	//logIt("CanLinkIt.removeExtraDotDotSlashesFromFilename("+filePathString+"): Starting:");
+	// We start at the beginning of this, because we're trimming the / path right before it. If we started at the end it would collapse /../../ to just /
+	while (filePathString.indexOf("../")>-1) {
+		var index=filePathString.indexOf("../");
+		var prevSlash = filePathString.substr(0, index-1).lastIndexOf("/");
+		/*$.writeln("index="+index);
+		$.writeln("prevSlash="+prevSlash);*/
+		if (prevSlash==-1) {
+			if (index>0)
+				// Trim to the front of it.
+				prevSlash=0;
+			else {
+				// There's nothing more to trim... Too bad
+				// TODO there could be later ../ further into the document that we might need to trim... We would have to do this same thing but start at the end.
+				break;
+			}
+		}
+		filePathString=filePathString.substring(0,prevSlash)+filePathString.substr(index+2);		
+	}
+
+	// TODO we should do another pass here at the end because those ../ are the deepest. It's possible that we start with a ../ that can't be removed, so if we started at the beginning we might miss ones later on.
+	// But it isn't possible that if it ends with a ../ that can't be removed, that there are any earlier ones that can't be removed.
+
+	return filePathString;
+}
+
+
+
+/******************
+	* CanLinkIt.getFileFromXMP()
+	*
+	* Each layer has XMP data. The XMP data stores our link info. This retrieves just the linked file from the XMP data.
+	*
+	* Arguments: ?XMPMeta?, boolean (true to ask the user for help finding a missing file, false is usually used for automated testing where we don't want to ask the user anything)
+	* Returns: File (the one that's linked)
+	*/
+LinksXMP.prototype.getFileFromXMP = function(xmp, askUser, layerRef) {
+	// Note: I'm putting these chunks inside brackets independent of each other so that they can each be moved around if we decide to change the priority.
+		
+
+	// Priority #1: Check relative location first (allowing you to copy a folder and update the relative links)
+	{
+		// It's still not there, so check for the relative URL
+		var linkRef = xmp.getProperty( this.AdobeLinksNameSpace, XMPObjectTags.RelativeURI );
+		if (linkRef!=null && linkRef!=undefined) {
+			// Get the path of the other file, relative to this one.
+			linkRef = app.activeDocument.path+"/"+linkRef;
+			// On a mac, when we do new File(...) it won't resolve "../" and erase the path, it sticks in the file itself. So we need to manually delete these.
+			linkRef = this.removeExtraDotDotSlashesFromFilename(linkRef);
+			var linkedFile = new File(linkRef.toString());
+			if (linkedFile.exists) {
+				return linkedFile;
+			}
+		}
+	}
+
+	// Priority #2: Check the original file location
+	{		
+		var linkRef = xmp.getProperty( this.AdobeLinksNameSpace, XMPObjectTags.URI );
+		if (linkRef==undefined || linkRef==null)
+			// it's not linked
+			return null;
+		var linkedFile = new File( linkRef.toString() );
+		if (linkedFile.exists)
+			return linkedFile;
+	}
+
+	// Priority #3: Check for the same file name in the same folder as this document
+	{
+		// It's not there, so check for the same file name in the same folder as this document:
+		var linkedFile = new File( activeDocument.fullName.parent +'/' + getSmartlayerFilename() );
+		if (linkedFile.exists)
+			return linkedFile;
+	}
+
+	// Priority #4: Ask the user where it should be.
+	{
+		// Still not found, so ask the user for help finding it
+		if (!askUser)
+			return null;
+		var linkedFile = File.openDialog ( 'Please locate file that was at '+decodeURI(xmp.getProperty( this.AdobeLinksNameSpace, XMPObjectTags.URI )), undefined, false );
+		if( linkedFile == undefined ) {
+			return null;
+			//throw ErrStrs.USER_CANCELLED;
+		} else {
+			// update the location here since the user updated it
+			this.saveLinkInfoFor(linkedFile, layerRef);
+			return linkedFile;
+		}
+	}
+}
+
+/******************
+	* CanLinkIt.getLayerCompFromXMP()
+	*
+	* Each layer has XMP data. The XMP data stores our link info. This retrieves just the layer comp name from the XMP data.
+	*
+	*/
+LinksXMP.prototype.getLayerCompFromXMP = function(xmp) {
+	// Note: I'm putting these chunks inside brackets independent of each other so that they can each be moved around if we decide to change the priority.
+
+	// It's still not there, so check for the relative URL
+	var layerCompName = xmp.getProperty( this.AdobeLinksNameSpace, XMPObjectTags.LINK_LAYER_COMP_NAME );
+	return layerCompName;
+}
+
+LinksXMP.prototype.isLayerUpToDate = function (xmp, file) {
+	if( xmp.getProperty( this.AdobeLinksNameSpace,"fileDateLinked" )  == this.xmpHelper.getDateFileModified( file ).toString() )
+		return true;
+	else
+		return false;	
+}
+
+/******************************
+ * inputs: unsavedDocument -- if true, there's a document, but it hasn't been saved yet.
+ */
+LinksXMP.prototype.getXMLForBrokenLink = function(hasDoc, isSO, multipleLayersSelected, unsavedDocument) {
+	var xml = "<object>";
+	xml += convertToXML(hasDoc, XMPObjectTags.HAS_DOC );
+	if (unsavedDocument==undefined)
+		unsavedDocument=false;
+	xml += convertToXML( unsavedDocument, "unsaved" );
+
+	xml += convertToXML( multipleLayersSelected, "multipleLayersSelected" );
+	
+	if (!hasDoc)
+		xml += convertToXML( "", "layerName" );
+	else
+		xml += convertToXML( activeDocument.activeLayer.name, "layerName" );
+	xml += convertToXML( isSO, "isSO" );
+	xml += convertToXML( false, "hasLink" );
+	xml += convertToXML( false, "isValid" );
+	xml += convertToXML( false, "isCurrent" );
+	// TODO in the future we could use canEdit to show whether the source file is editable
+	//xml += convertToXML( false , "canEdit");
+	xml += convertToXML( " ", XMPObjectTags.URI );
+	xml += convertToXML( " ", XMPObjectTags.LINKDOCNAME );
+	xml += convertToXML( " ", "fileDate" );
+	xml += convertToXML( " ", "LinkDate" );
+	xml += convertToXML( " ", "fileDateLinked" );
+	xml += "</object>";
+	return xml;
+}

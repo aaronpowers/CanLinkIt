@@ -745,7 +745,7 @@ $.level = 0;
 
 $.level = dbLevel;
 
-var start = new Date().getTime();
+/*var start = new Date().getTime();
 var f = new Flattener();
 
 f.exec(new File("/c/Dropbox/AllDocuments/EntrepreneurshipAndIdeas/LinkDox/FlashBuilderProject/LinkDox/JSX/CanLinkIt.jsx"),
@@ -753,5 +753,5 @@ f.exec(new File("/c/Dropbox/AllDocuments/EntrepreneurshipAndIdeas/LinkDox/FlashB
 
 var stop = new Date().getTime();
 var elapsed = (stop - start)/1000;
-//alert("Done (" + Number(elapsed).toFixed(3) + " secs).");
-"Done (" + Number(elapsed).toFixed(3) + " secs)."
+$.writeln("Done (" + Number(elapsed).toFixed(3) + " secs).");
+*/

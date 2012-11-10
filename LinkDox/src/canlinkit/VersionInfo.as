@@ -26,7 +26,7 @@ package canlinkit {
 		import mx.core.Application;
 
 		
-		private static var CurrentVersion:String="1.0.8";
+		private static var CurrentVersion:String="1.0.11-alpha";
 		private static var UPDATE_XML_URL:String="http://app.canlinkit.com/ExtensionUpdate.xml";
 		// When we're working in development, set this to true. Befor releasing, set it to false. This will, for example, hide secret menu items.
 		public static var IN_DEVELOPMENT:Boolean=true;
@@ -182,7 +182,7 @@ package canlinkit {
 				Alert.buttonWidth=85;
 				
 				Alert.show("A newer version of LinkDox is available, version \n"
-					+latestVersion+"Would you like to download it?"/*+
+					+latestVersion+"\nWould you like to download it?\n(You currently have version "+CurrentVersion+")"/*+
 					"\n\n"+
 					description.replace("<br>","\n")*/, "Download Latest Version", Alert.YES|Alert.CANCEL, Sprite(mx.core.Application.application), alertClickHandler_UserWantsToDownload);
 				

@@ -1,0 +1,363 @@
+﻿/*********************************************
+Copyright 2011 Aaron Powers
+All Rights Reserved
+
+LoadLinkedFiles.jsxinc
+*/
+#target photoshop
+
+
+function LoadLinkedFiles() {
+	// We use a temp file so that we don't need to write over the clipboard, trying to preserve the user's clipboard...
+	this.tempImgFile = new File(/* Folder.desktop*/Folder.temp + "/CanLinkItTempImage.png" );
+	// What was the file we last linked from? If it's the same and hasn't been updated, don't copy it yet again, that's really slow.
+	this.tempImgFileLastLinkFrom = null;
+	this.tempImgFileLastLinkFromDate = null;
+	this.tempImgFileLastLinkFromLayerComp=null;
+	this.flattenInTempFile=true;
+}
+
+/****************
+	* This is the main one to call to update an existing layer -- it uses the other functions below intelligently.
+	*
+	*/
+LoadLinkedFiles.prototype.loadIntoSmartObjectLayer = function(linkedFile, layerRef,layerCompName) {
+	// Update The Layer From The Link
+	if (!PsdLib.isMultiLayer(linkedFile.name)) {
+		// It's pre-flattened. Just load the already flat file.
+		loadLinkedFiles.loadFileIntoSmartObjectLayer(linkedFile, layerRef);
+	} else {
+		// It's a multilayer file or an unknown one (if the value was null). So, compress it down to one layer.
+		// We need to remember what file we were in, because it may be changed in the process.
+		var docToUpdate = app.activeDocument;
+		if (this.flattenInTempFile) {
+			var tempFile=loadLinkedFiles.loadFileIntoTempFile(linkedFile,layerCompName);
+			if (tempFile==null) {
+				// failed, can't do it. Don't try. Error message should already have displayed.
+				return false;
+			}
+			app.activeDocument=docToUpdate;
+			/*alert("updateSingleLayer\n"+
+				"layerRef="+layerRef+"\n"+
+				"className="+getClassName(layerRef)+"\n"+
+				"layerRef.bounds="+layerRef.bounds+"\n"+
+				"layerRef.name="+layerRef.name);*/
+			return loadLinkedFiles.loadTempFileIntoSmartObjectLayer(layerRef);
+		} else {
+			return this.loadFileIntoSmartObjectLayer(linkedFile, layerRef);
+		}
+	}	
+}
+
+
+/**********************
+	* CanLinkIt.loadTempFileIntoSmartObjectLayer
+	* 
+	* This is used to place a flattened file into the new location. Assumes you've called loadFileIntoTempFile(), this should generally be called right afterwards.
+	*
+	* Input: layerName: The layer name.
+	* Returns: The ActionDescriptor for the place action
+	* Output: None
+	* Assumptions: The desired layer to update is currently the app.activeDocument.activeLayer (not sure if this is a requirement but I suspect so)
+	*/
+LoadLinkedFiles.prototype.loadTempFileIntoSmartObjectLayer = function(layerRef) {
+	return this.loadFileIntoSmartObjectLayer(this.tempImgFile, layerRef);
+}
+
+LoadLinkedFiles.prototype.saveCurrentFileTo=function(toFile) {
+	
+	// The standard exportDocument is commented out belowe because it does not handle slices. So we use Save As instead of this.
+	
+	/*var exportOptions = new ExportOptionsSaveForWeb();
+	exportOptions.format=SaveDocumentType.PNG;
+	exportOptions.PNG8=false;//use 24 bit
+	exportOptions.transparency=true;
+	try {
+		// Note that the next line could cause a out of space error... We'll have to handle it in another location.
+		logIt("\t50");
+		duppedDocument.exportDocument(toFile, ExportType.SAVEFORWEB, exportOptions);
+		logIt("\t60");
+	} catch (e) {
+		alert("Could not place, probably because you're out of space on your hard drive.\n\n"+e);
+		return null;	*/
+	
+	// =======================================================
+	var idsave = charIDToTypeID( "save" );
+    var desc68 = new ActionDescriptor();
+    var idAs = charIDToTypeID( "As  " );
+       var desc69 = new ActionDescriptor();
+       var idPGIT = charIDToTypeID( "PGIT" );
+       var idPGIT = charIDToTypeID( "PGIT" );
+       var idPGIN = charIDToTypeID( "PGIN" );
+       desc69.putEnumerated( idPGIT, idPGIT, idPGIN );
+       var idPNGf = charIDToTypeID( "PNGf" );
+       var idPNGf = charIDToTypeID( "PNGf" );
+       var idPGAd = charIDToTypeID( "PGAd" );
+       desc69.putEnumerated( idPNGf, idPNGf, idPGAd );
+    var idPNGF = charIDToTypeID( "PNGF" );
+    desc68.putObject( idAs, idPNGF, desc69 );
+    var idIn = charIDToTypeID( "In  " );
+    desc68.putPath( idIn, toFile );
+    var idCpy = charIDToTypeID( "Cpy " );
+    desc68.putBoolean( idCpy, true );
+	executeAction( idsave, desc68, DialogModes.NO );
+}
+
+/**********************
+	* LoadLinkedFiles.loadFileIntoTempFile
+	* 
+	* This is used before placing a flattened file into a new location: get the linked file and save it as a temporary file that we'll use to import shortly afterwards.
+	*
+	* Input: The file that was linked to
+	* Output: The temp file that was linked to. Returns null if the file could not be loaded. Error message would be shown directly to the user.
+	*/
+LoadLinkedFiles.prototype.loadFileIntoTempFile=function(file,layerCompName) {
+	logIt("LoadLinkedFiles.prototype.loadFileIntoTempFile(\""+file+"\"):");
+	
+	if (this.tempImgFileLastLinkFrom!=null && file.fsName==this.tempImgFileLastLinkFrom.fsName) {
+		logIt("\tthe two fsNames appear to be the same:\n\t\t"+file.fsName+"\n\t\t"+this.tempImgFileLastLinkFrom.fsName+"\n\t\tSo we're going to use the temp file.");
+		// It's the same file as we just did. The file should still exist.
+		if (this.tempImgFileLastLinkFrom.exists) {
+			// Good, it still exists.
+			if (this.tempImgFileLastLinkFrom.modified<this.tempImgFileLastLinkFromDate) {
+				// it's even up to date! The referenced file hasn't changed since we saved it.
+				if (this.tempImgFileLastLinkFromLayerComp==layerCompName)
+					// And the layer comp matches (potentially both null). So this should be really quick. We're done already.
+					return this.tempImgFile;
+			}
+		}
+	}
+	logIt("\t10");
+
+	// check if the referenced file is open
+	var fileWasOpen=false;
+	var referencedDocument=null;
+	for (var i=0; i<app.documents.length; i++) {
+		if (app.documents[i].fullName==file.toString()) {
+			fileWasOpen=true;
+			referencedDocument=app.documents[i];
+			break; // no need to search any more, we found it.
+		}
+	}
+	logIt("\t20");
+
+	// Only open the file if it's not already open:
+	if (referencedDocument==null)
+		referencedDocument = app.open(file);
+	logIt("\t30");
+	// Save it to our temp file:
+	// I find that when there are multiple windows open, it can duplicate the wrong document here, it can duplicate the one in the front -- it shouldn't.
+	app.activeDocument = referencedDocument;
+	var duppedDocument = referencedDocument.duplicate();
+	logIt("\t40");
+	// FUTURE: We can do any optional stuff right here, such as switching to a particular layer comp. We'd need that information passed in as a parameter.
+	// optional:
+	// The following "trim" is generally not a good default option, because it could result in moving things around in their space, especially if we were taking advantage of layer comps and the ability to switch them.
+	// However, "trim" might be an option we might want our users to be able to choose to do.
+	//duppedDocument.trim(TrimType.TRANSPARENT);
+	// Never use "flatten()" here. It would be problematic in flattening out transparency -- if there's a hidden layer, it flattens that one too, making it visible again!
+	// The following mergeVisibleLayers() could be useful if we plan to do something else to the image afterwards, e.g. a user-driven parameter.
+	//duppedDocument.mergeVisibleLayers();	
+
+	// It must be the frontmost document to do the export.
+	app.activeDocument = duppedDocument;
+	if (layerCompName!=null)
+		if (!Action_LinkToLayerComp.applyLayerCompNamed(layerCompName)) {
+			// Failed to find layer comp. Fail to update.
+			duppedDocument.close(SaveOptions.DONOTSAVECHANGES);
+			return null;
+		}
+	this.saveCurrentFileTo(this.tempImgFile);
+
+	/*var exportOptions = new ExportOptionsSaveForWeb();
+	exportOptions.format=SaveDocumentType.PNG;
+	exportOptions.PNG8=false;//use 24 bit
+	exportOptions.transparency=true;
+	try {
+		// Note that the next line could cause a out of space error... We'll have to handle it in another location.
+		logIt("\t50");
+		duppedDocument.exportDocument(this.tempImgFile, ExportType.SAVEFORWEB, exportOptions);
+		logIt("\t60");
+	} catch (e) {
+		alert("Could not place, probably because you're out of space on your hard drive.\n\n"+e);
+		return null;
+	}*/
+	// Note that we just updated this one... If we're updating the same one, we don't need to reopen and recopy it.
+	this.tempImgFileLastLinkFrom = file;
+	this.tempImgFileLastLinkFromDate = new Date();
+	loadLinkedFiles.tempImgFileLastLinkFromLayerComp=layerCompName;
+	logIt("\t70");
+
+	duppedDocument.close(SaveOptions.DONOTSAVECHANGES);
+	logIt("\t80");
+	if (!fileWasOpen)
+		// close without prompting about changes, since it was closed when we started.
+		// Note that part of the reason we do this without prompting about changes is because we could have changed the layer comps above.
+		referencedDocument.close(SaveOptions.DONOTSAVECHANGES);
+		//referencedDocument.close(SaveOptions.PROMPTTOSAVECHANGES); // we prompt if it was already open.
+	return this.tempImgFile;
+}
+
+/**********************
+	* CanLinkIt.loadFileIntoSmartObjectLayer
+	* 
+	* This is used before placing a flattened file into a new location: get the linked file and save it as a temporary file that we'll use to import shortly afterwards.
+	* This performs the same function as the Layers Panel, Select A Layer, Right Click, then select "Replace Contents...", taking in a parameter.
+	*
+	* Input: file (a File)
+	* Returns: the Place Action Descriptor
+	* Output: None
+	* Assumptions: The desired layer to update is currently the app.activeDocument.activeLayer (not sure if this is a requirement but I suspect so)
+	*/
+LoadLinkedFiles.prototype.loadFileIntoSmartObjectLayer = function(file, layerRef) {
+	logIt("CanLinkIt.loadFileIntoSmartObjectLayer("+file+"): Starting:");
+	//try {
+		// To replace a smart object layer, you need to use photoshop's executeAction.
+		var desc = new ActionDescriptor();
+		desc.putPath( charIDToTypeID("null"), new File(file) );
+		/*alert("layerRef="+layerRef+"\n"+
+			"className="+getClassName(layerRef)+"\n"+
+			"layerRef.bounds="+layerRef.bounds+"\n"+
+			"layerRef.name="+layerRef.name);*/
+		if( layerRef!=undefined && layerRef.name != undefined ) {
+			var ref = new ActionReference();
+			// Note: Since this works even when there are multiple layers with the same layerName, it would be reasonable to guess that it's required that the target layer be the activeLayer despite the layerName parameter below.
+			ref.putName( charIDToTypeID("Lyr "), layerRef.name );
+			desc.putReference( charIDToTypeID("Lyr "), ref );
+		}
+
+		// The place command changes the size of the object to the original size... We don't want that, we want the current size the user has set on the object. So...
+		// Save the original size
+		var startRulerUnits = app.preferences.rulerUnits;
+		app.preferences.rulerUnits = Units.PIXELS;
+		
+		var originalExternalBounds=PsdLib.getLayerBounds();
+		var originalInternalBounds=PsdLib.getSmartObjectInternalBounds();
+		
+
+		// do the actual place
+		var actionDescriptor = executeAction( stringIDToTypeID("placedLayerReplaceContents"),
+			desc, DialogModes.NO );
+
+		/********************
+			MAKING SURE IT'S THE SAME RELATIVE SIZE
+			* I've found so far that images can get replaced as a larger size than they originally were, but not vice versa.
+			*	For an example see Folder1/SmallSizeLinkedToLoremIpsum.psd
+			* But, what happens when there's translucency in the layer that's placed? The reported bounds are based on the nontranslucent pixels, even within a smart object (not the rectangle that you see when you press-control-t
+			*	That means that there times when the layers got placed as exactly the right size we want, but get reported as a different size than the original.
+			*	For an example see LinkedToThreeLayerComps.psd for an example 
+			* So I also add some tolerance (the .9 above) because a small change is less likely to be as big of a problem as resizing it when it shouldn't be resized.
+			* This is unfortunately a very complicated problem -- perhaps critical to CanLinkIt working well. However, all the solutions I've tried are working poorly and, worse, differently for different placed layers.
+			*/
+
+		var newExternalBounds=PsdLib.getLayerBounds();
+		var newInternalBounds=PsdLib.getSmartObjectInternalBounds();
+	
+		// See if it needs to be resized first. If not, don't do anything.
+		// Calculate the ratios:
+		var internalWidthRatio=originalInternalBounds.width/newInternalBounds.width;
+		var internalHeightRatio=originalInternalBounds.height/newInternalBounds.height;
+		var internalDocWidthRatio=originalInternalBounds.docWidth/newInternalBounds.docWidth;
+		var internalDocHeightRatio=originalInternalBounds.docHeight/newInternalBounds.docHeight;
+		var externalWidthRatio=originalExternalBounds.width/newExternalBounds.width;
+		var externalHeightRatio=originalExternalBounds.height/newExternalBounds.height;
+		
+		
+		if (internalWidthRatio>0.99 && internalWidthRatio<1.01 && internalHeightRatio>0.99 && internalHeightRatio<1.01) {
+			// the new size is basically the same as the old size internally. So the external size should be the same as before.
+			if (externalWidthRatio>0.99 && externalWidthRatio<1.01 && externalHeightRatio>0.99 && externalHeightRatio<1.01) {
+				// yep, they're basically the same on the outside, too. do nothing.
+			} else 
+				// it's off:
+				PsdLib.resizeLayer(originalExternalBounds.width, originalExternalBounds.height);
+		} else {
+			// The internal ratio has changed.
+			var widthRatio = internalWidthRatio/externalWidthRatio;
+			var heightRatio=internalHeightRatio/externalHeightRatio;
+			if (widthRatio>0.99 && widthRatio<1.01 && heightRatio>0.99 && heightRatio<1.01) {
+				// The overal ratios are the same. It was placed properly. Nothing to do.
+				// The file Has-Outdated-Link-To-Layer-Comp.psd, when updated, hits this path.
+			} else {
+				//So the new size should be different from the old size.
+				// The layer has been resized in the destination, and the resize didn't keep up.
+				// I have no file examples that hit this path currently. I'm rather worried that it's wrong and I'm not sure how to test it.
+				//PsdLib.resizeLayer(originalExternalBounds.width/widthRatio, originalExternalBounds.height/heightRatio);
+			}
+			
+			/*if (internalDocWidthRatio>0.99 && internalDocWidthRatio<1.01 && internalDocHeightRatio>0.99 && internalDocHeightRatio<1.01) {
+				// But the actual doc size has not changed.
+				// I'm not really sure what to do here, now that we know this. Probably means we shouldn't do anything to adjust the sizes.
+			}*/
+						
+		}
+		app.preferences.rulerUnits = startRulerUnits;
+		logIt("\tCanLinkIt.loadFileIntoSmartObjectLayer: Complete.");
+		return actionDescriptor;
+	/*} catch (e) {
+		if (typeof BREAK_ON_UNEXPECTED!= "undefined") $.bp();
+		logIt("CanLinkIt.loadFileIntoSmartObjectLayer(): Failed due to error: "+e);
+		throw ErrStrs.DEFAULT;
+	}*/
+}
+
+
+
+LoadLinkedFiles.prototype.loadFileIntoNewSmartLayer = function(file,layerCompName) {
+	//try {
+		// Then Use Photoshop's "Place" command to place The Temp File into a smart object:
+		var idPlc = charIDToTypeID( "Plc " );
+		var desc2 = new ActionDescriptor();
+		var idnull = charIDToTypeID( "null" );
+
+		// Update The Layer From The Link
+		if (PsdLib.isMultiLayer(file.name)==false) {
+			// It's pre-flattened. Just load the already flat file.
+			desc2.putPath( idnull, file);
+		} else {
+			// It's a multilayer file or an unknown one (if the value was null). So, compress it down to one layer.
+			// We need to remember what file we were in, because it may be changed in the process.
+			var docToUpdate = app.activeDocument;
+			if (this.flattenInTempFile) {
+				var tempFile=this.loadFileIntoTempFile(file,layerCompName);
+				if (tempFile==null) {
+					// failed, can't do it. Don't try. Error message should already have displayed.
+					return false;
+				}
+				// Switch back to the original document.
+				app.activeDocument=docToUpdate;
+				desc2.putPath( idnull, tempFile);
+			} else {
+				desc2.putPath( idnull, file);
+			}
+		}	
+
+		var idFTcs = charIDToTypeID( "FTcs" );
+		var idQCSt = charIDToTypeID( "QCSt" );
+		var idQcsa = charIDToTypeID( "Qcsa" );
+		desc2.putEnumerated( idFTcs, idQCSt, idQcsa );
+		var idOfst = charIDToTypeID( "Ofst" );
+		var desc3 = new ActionDescriptor();
+		var idHrzn = charIDToTypeID( "Hrzn" );
+		var idPxl = charIDToTypeID( "#Pxl" );
+		desc3.putUnitDouble( idHrzn, idPxl, 0.000000 );
+		var idVrtc = charIDToTypeID( "Vrtc" );
+		var idPxl = charIDToTypeID( "#Pxl" );
+		desc3.putUnitDouble( idVrtc, idPxl, 0.000000 );
+		var idOfst = charIDToTypeID( "Ofst" );
+		desc2.putObject( idOfst, idOfst, desc3 );
+		executeAction( idPlc, desc2, DialogModes.NO );
+
+		if (PsdLib.isMultiLayer(file.name)!=false) {
+			// so we collapsed it. this means the file name is the temp file name, which is no good. We have to update the layer name.
+			var newName = file.name;
+			if (newName.lastIndexOf(".")>0)
+				newName = newName.substr(0, newName.lastIndexOf("."));
+			app.activeDocument.activeLayer.name=newName;
+		}
+		return true;
+	/*} catch (e) {
+		logIt("LoadLinkedFiles.loadFileIntoNewSmartLayer: "+e);
+		if (typeof BREAK_ON_UNEXPECTED!= "undefined") $.bp();
+		return false;
+	}*/
+}

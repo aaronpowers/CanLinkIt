@@ -4,6 +4,27 @@
 	*
 	* This must be included from CanLinkIt.jsx. It depends on CanLinkIt... Create it by calling:
 	*	new EditedSOHelper(canLinkIt);
+	*
+	*
+	* I've spent a lot of time trying to optimize this action. There are a lot of lessons in Photoshop features I couldn't work around.
+			(1) Listening to the place needs to hit our script at two separate times:
+				(a) Right after the user edits, but while the layer that was opened is still selected -- so we can find out what the original was.
+					(In theory we could work around this by listening only at (b), closing the doc, and then looking at the selected layer hoping the document is the same one.
+					But I haven't tried this and don't know if it would work).
+					This call is at: userEditedSO().
+				(b) Right after the layer gets opened, so that we can close it.
+					This call is at: userEditedSOPartB().
+				The Photoshop event happens only after (a), not after (b), above. The only way I've found to get around that is to put in a timer.
+				Unfortunately, Photoshop JavaScript has no timer event. The only place we can have a timer is in Flash. So flash triggers two events and we handle it there.
+			(2) When we listen to the Photoshop place action using a notifier, that notifier has a bunch of limitations that we'd need to work around all of.
+				(a) There's no way that the notifier can directly access our Photoshop variables. We'd need to be able to keep state information somewhere else, say in the Photoshop preferences.
+				(b) There's no timer event in JavaScript. The only place that can get a timer is in Flash, which means that we can't use this notifier to listen to the action.
+				(c) Notifiers work anytime Photoshop is running, whether the program is on or not. This is desirable -- we'd like to listen whenever Photoshop is open.
+				(d) The flash panel can only listen after it's started.
+				
+			This all leads up to a very non-ideal solution. As far as I can tell, there's no workaround that always listens to the panel and can close the smart object document.
+	*
+	*
 	*/
 #target photoshop
 
@@ -98,10 +119,6 @@ EditedSOHelper.prototype.editDocumentToOpen=null;
 EditedSOHelper.prototype.lastSelectedLayer=null;
 EditedSOHelper.prototype.edited=new Array();/*of EditedSO*/
 
-// For debugging purposes, we allow automated answering of the "confirm" prompt to the user. By default it's null which means no automatic answer. Set it to a boolean value to not ask the user and act with the return value you set.
-EditedSOHelper.prototype.debug_autoAnswerConfirm=null;
-
-
 EditedSOHelper.prototype.getEditItem = function(destinationDocument) {
 	for (var i=0; i<this.edited.length; i++) {
 		if (this.edited[i].destinationDocument==undefined) {
@@ -171,21 +188,32 @@ EditedSOHelper.prototype.userEditedSO = function() {
 	}*/
 	var xmp = canLinkIt.xmpHelper.getXMPFrom(this.lastSelectedLayer);
 	
-	var linkedFile = canLinkIt.getFileFromXMP(xmp, true);
+	var linkedFile = linksXMP.getFileFromXMP(xmp, true, this.lastSelectedLayer);
 	if (linkedFile==null) {
 		logIt("EditedSOHelper.userJustEditedAPlacedSmartObjectLayer(): Error! There was no linked file even though the original layer has a link...");
 		return false;
 	}
 
+	// This has been a problem, so we're going to try to train users to do the thing that Photoshop supports. In the future maybe we can bring back the dead code below.
+	if (typeof debug_EditedSOHelper_autoAnswerOpenSO=="undefined" || debug_EditedSOHelper_autoAnswerOpenSO==null) {
+		alert("This layer is linked to another file. This action opens the smart object, not the original.\n\nTo open the original, close the window, open the CanLinkIt panel, and click the hyperlink to the original file.");
+	}
+	if (true)
+		return false;
+
 	var editTheOriginal;
-	if (this.debug_autoAnswerConfirm==null)
+	if (typeof debug_EditedSOHelper_autoAnswerOpenSO=="undefined" || debug_EditedSOHelper_autoAnswerOpenSO==null)
+		// it's undefined or null. ask the user.
 		editTheOriginal= confirm("This smart object has a linked file attached.\n"+
 		"Do you want to edit the original file?\n"+
 		"\n"+
 		"Original File: "+linkedFile.toString());
 	else
+		// it's defined, use it:
 		// Don't ask the user if we're debugging and want to skip the prompt:
-		editTheOriginal=this.debug_autoAnswerConfirm;
+		editTheOriginal=debug_EditedSOHelper_autoAnswerOpenSO;
+
+	//if (this.debug_autoAnswerConfirm==null)
 	if (!editTheOriginal)
 		return false;
 	//alert("TODO Close this new one and edit the original here. The current document's name is: "+app.activeDocument.name);
@@ -235,6 +263,39 @@ EditedSOHelper.prototype.userEditedSOPartB = function() {
 	}
 }
 
+EditedSOHelper.prototype.userRequestsEditSO= function() {
+	logIt("EditedSOHelper.userRequestsEditSO(): Starting:");
+	var xml = canLinkIt.getLayerInfo(activeDocument, activeDocument.activeLayer);
+	if (xml==null)
+		// TODO This is a bug.
+		return getXMLObject("boolean",false);
+	if (xml.indexOf("<property id=\"hasLink\"><true/>")==-1) {
+		logIt("EditedSOHelper.userRequestsEditSO(): original layer doesn't have a link.");
+		return false;
+	}
+	// The age old question... What should we do if it has a link but it's invalid? I think we ask anyways and hope to get an updated version.
+	/*if (xml.indexOf("<property id=\"isValid\"><true/>") {
+	}*/
+	var xmp = canLinkIt.xmpHelper.getXMPFrom(activeDocument.activeLayer);
+	
+	var linkedFile = linksXMP.getFileFromXMP(xmp, true, activeDocument.activeLayer);
+	if (linkedFile==null) {
+		logIt("EditedSOHelper.userRequestsEditSO(): Error! There was no linked file even though the original layer has a link...");
+		return false;
+	}
+
+	// Track it, in case the user edits it again:
+	var editInfo = new EditedSO();
+	editInfo.destinationDocument=activeDocument;
+	editInfo.destinationLayer=activeDocument.activeLayer; // yes, this can change before we get the chance to update it, so we have to store it separately.
+	editInfo.sourceFile=linkedFile; // we don't know the actual document yet, so we'll just save the file name.
+	this.edited.push(editInfo); // save it for later.
+	
+	
+	app.open(linkedFile);
+	logIt("EditedSOHelper.userRequestsEditSO(): Completed.");
+}
+
 /*************************************
 	* EditedSOHelper.notifySaved()
 	* Call this after a document has been saved.
@@ -244,6 +305,12 @@ EditedSOHelper.prototype.userEditedSOPartB = function() {
 	*
 	*/
 EditedSOHelper.prototype.notifySaved = function() {
+	if (true)
+		// Two users have complained about this behavior because it was too slow... The idea was good but in practice it's not working. We should do a rework where it only does the single target layer that was originally selected, if possible.
+		// Note that there was a bug with updating just one layer, so we're not sure how to implement this anymore.
+		return false;
+
+	
 	try {
 		logIt("EditedSOHelper.notifySaved: 1");
 		// Step 1: Check if the saved document (the current document) was one of our source documents.

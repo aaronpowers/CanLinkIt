@@ -25,10 +25,10 @@ function getClassName (object) {
 };
 
 
-function convertObjectToXML(property, identifier) {
+function convertObjectToXMLValue(property) {
+	xml="";
 	var className=getClassName(property);
 	
-	var xml = '<property id="' + identifier + '">';
 	switch(className){
 		case "Date":
 			xml += "<date>";
@@ -39,24 +39,12 @@ function convertObjectToXML(property, identifier) {
 			alert("XMLLib.jsxinc: convertObjectToXML: Object class " + className + " is unknown.");
 			return "";
 	}
-	xml += '</property>';
 	return xml;
 }
 
-/**
-	John Huan Vu
-	In order to communicate to the SWF file, it must be written as an XML
-		containing the property and identifier. This utility is very helpful for
-		a two-way communication between the JSX and SWF.
-	@param {String} property The property or value for the identifier
-	@param {String} identifier The unique identifier for the property
-	@returns An xml containing the property and identifier
-	@type String
-*/
-function convertToXML(property, identifier){
+function convertToXMLValue(property) {
+	var xml="";
 	var type = typeof property;
-	var xml = '<property id="' + identifier + '">';
-	
 	switch(type){
 		case "number":
 			xml += "<number>";
@@ -72,7 +60,8 @@ function convertToXML(property, identifier){
 			xml += "</string>";
 			break;
 		case "object":
-			return convertObjectToXML(property, identifier);
+			xml += convertObjectToXMLValue(property);
+			break;
 		case "undefined":
 			xml += "<string>undefined</string>";
 			break;
@@ -80,6 +69,23 @@ function convertToXML(property, identifier){
 			alert("Type " + type + " is unknown.");
 			return "";
 	}
+	return xml;
+}
+
+/**
+	John Huan Vu
+	In order to communicate to the SWF file, it must be written as an XML
+		containing the property and identifier. This utility is very helpful for
+		a two-way communication between the JSX and SWF.
+	@param {String} property The property or value for the identifier
+	@param {String} identifier The unique identifier for the property
+	@returns An xml containing the property and identifier
+	@type String
+*/
+function convertToXML(property, identifier){
+	var xml = '<property id="' + identifier + '">';
+	xml+=convertToXMLValue(property);
+
 	xml += '</property>';
 	return xml;
 }

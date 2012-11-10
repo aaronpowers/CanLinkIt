@@ -17,17 +17,12 @@ All Rights Reserved
 #include "UnitTestLib.jsxinc"
 #include "TestFiles.jsxinc"
 
-/*Because of the following line, it's no longer necessary to edit extenscript by going to just above the top of this script, change the dropdown from 
-	"ExtendScript Toolkit CS5" to one of the "Adobe Photoshop" selections -- whichever one you want to test */
+/*Because of the following line, it's no longer necessary to do change a dropdown in extenscript, by going to just above the top of this script, change the dropdown from 
+	"ExtendScript Toolkit CS5" to one of the "Adobe Photoshop" selections*/
 #target photoshop
 
 // TEST TODO
 // test multipleLayersSelected
-
-
-
-
-
 
 
 function testNoDocumentsOpen() {
@@ -200,7 +195,7 @@ function testNewDocument() {
 
 
 function testUpdateAllLinks() {
-	try {
+	//try {
 		logIt("testUpdateAllLinks():");
 		app.open(testAssembledFile2);
 		// note that due to a limit in how we're searching and checking for names, each layer has to have a unique name to perform this test. So we'll edit  the file so it's got uniquely named layers.
@@ -219,9 +214,9 @@ function testUpdateAllLinks() {
 		}
 
 		app.activeDocument.close(SaveOptions.DONOTSAVECHANGES);
-	} catch (e) {
+	/*} catch (e) {
 		alert("Uncaught Error Message in TestCanLinkIt.jsx/testUpdateAllLinks(): "+e);
-	}
+	}*/
 }
 
 /******************************
@@ -229,27 +224,64 @@ function testUpdateAllLinks() {
 	* test the newLinkTo function
 	*/
 function testNewLink() {
-	try {
-		// I've seen a bug where I create a new link and it doesn't get linked. I don't know why.	
-		app.open(testEmptyFile);
+	// I've seen a bug where I create a new link and it doesn't get linked. I don't know why.	
+	app.open(testEmptyFile);
 
-		canLinkIt.newLinkTo(testLinkToFile);
-
-		var layerName="BorderImageExample2";
-		var xml = canLinkIt.getActiveLayerInfo("1");
-		xml = canLinkIt.getActiveLayerInfo("1");
-		checkForLayerIsUpToDate(layerName);	
-		
-		assertEquals(true, xml.indexOf("<property id=\"isCurrent\"><true/></property>")>-1, "testNewLink: The XML should include a property, isCurrent=true, but it' doesn't.\nxml="+xml);
-		assertEquals(true, xml.indexOf("FlashBuilderProject/TestFiles/Files/Folder2/LinkToThese/BorderImageExample2.psd</string></property>")>-1,
-			"testNewLink: The XML should include a property with the uri being the path to the file, but it' doesn't.\nxml="+xml);
-		assertEquals(true, xml.indexOf("<property id=\"relativeURI\"><string>../Folder2/LinkToThese/BorderImageExample2.psd</string></property>")>-1,
-			"testNewLink: The XML should include a property with the relativeURI being the relative path to the file, but it' doesn't.\nxml="+xml);	
-		
-		app.activeDocument.close(SaveOptions.DONOTSAVECHANGES);
-	} catch (e) {
-		alert("Uncaught Error Message in TestCanLinkIt.jsx/testNewLink(): "+e);
+	//loadLinkedFiles.tempImgFile
+	var oldTempFileModifiedDate=null;
+	if (loadLinkedFiles.tempImgFile.exists)
+		oldTempFileModifiedDate=linksXMP.xmpHelper.getDateFileModified( loadLinkedFiles.tempImgFile ).toString();
+	action_LinkTo.newLinkTo(testLinkToFile);
+	
+	assertEquals(true,loadLinkedFiles.tempImgFile.exists,"After linking a file the temp file should exist at "+loadLinkedFiles.tempImgFile);
+	if (oldTempFileModifiedDate!=null) {
+		assertNotEquals(oldTempFileModifiedDate,linksXMP.xmpHelper.getDateFileModified( loadLinkedFiles.tempImgFile ).toString(),"After creating a new link, the temp file should have been modified.");
 	}
+
+	var layerName="BorderImageExample2";
+	var xml = canLinkIt.getActiveLayerInfo("1");
+	xml = canLinkIt.getActiveLayerInfo("1");
+	checkForLayerIsUpToDate(layerName);	
+	
+	assertEquals(true, xml.indexOf("<property id=\"isCurrent\"><true/></property>")>-1, "testNewLink: The XML should include a property, isCurrent=true, but it' doesn't.\nxml="+xml);
+	assertEquals(true, xml.indexOf("FlashBuilderProject/TestFiles/Files/Folder2/LinkToThese/BorderImageExample2.psd</string></property>")>-1,
+		"testNewLink: The XML should include a property with the uri being the path to the file, but it' doesn't.\nxml="+xml);
+	assertEquals(true, xml.indexOf("<property id=\"relativeURI\"><string>../Folder2/LinkToThese/BorderImageExample2.psd</string></property>")>-1,
+		"testNewLink: The XML should include a property with the relativeURI being the relative path to the file, but it' doesn't.\nxml="+xml);	
+	
+	app.activeDocument.close(SaveOptions.DONOTSAVECHANGES);
+}
+
+/******************************
+	* testNewLink
+	* test the newLinkTo function
+	*/
+function testNewLinkWithSlices() {
+	app.open(new File(rootPath+endOfPath+"Files/Slices/TrulyEmptyFile.psd"));
+
+	//loadLinkedFiles.tempImgFile
+	var oldTempFileModifiedDate=null;
+	if (loadLinkedFiles.tempImgFile.exists)
+		oldTempFileModifiedDate=linksXMP.xmpHelper.getDateFileModified( loadLinkedFiles.tempImgFile ).toString();
+	action_LinkTo.newLinkTo(new File(rootPath+endOfPath+"Files/Slices/HasASlice.psd"));
+	
+	assertEquals(true,loadLinkedFiles.tempImgFile.exists,"testNewLinkWithSlices: After linking a file the temp file should exist at "+loadLinkedFiles.tempImgFile);
+	if (oldTempFileModifiedDate!=null) {
+		assertNotEquals(oldTempFileModifiedDate,linksXMP.xmpHelper.getDateFileModified( loadLinkedFiles.tempImgFile ).toString(),"After creating a new link, the temp file should have been modified.");
+	}
+
+	var layerName="HasASlice";
+	var xml = canLinkIt.getActiveLayerInfo("1");
+	xml = canLinkIt.getActiveLayerInfo("1");
+	checkForLayerIsUpToDate(layerName);	
+	
+	assertEquals(true, xml.indexOf("<property id=\"isCurrent\"><true/></property>")>-1, "testNewLinkWithSlices: The XML should include a property, isCurrent=true, but it' doesn't.\nxml="+xml);
+	assertXMLHasPropertyContaining(XMPObjectTags.URI,"FlashBuilderProject/TestFiles/Files/Slices/HasASlice.psd</string>",xml,
+		"testNewLinkWithSlices: The XML should include a property with the uri being the path to the file, but it' doesn't.\nActual XML="+xml);
+	assertXMLHasProperty(XMPObjectTags.RelativeURI,"HasASlice.psd",xml,
+		"testNewLinkWithSlices: The XML should include a property with the relativeURI being the relative path to the file, but it' doesn't.\nActual xml="+xml);
+	
+	app.activeDocument.close(SaveOptions.DONOTSAVECHANGES);
 }
 
 /**************************
@@ -264,7 +296,7 @@ function testNewLinksPieces() {
 	for (var i=0; i<16; i++) {
 		// TODO: figure out how to place files programmatically
 		
-		canLinkIt.saveLinkInfoFor(testLinkToFile);
+		linksXMP.saveLinkInfoFor(testLinkToFile,app.activeDocument.activeLayer);
 		var layerRef = makeLayerNamedActive(app.activeDocument.activeLayer.name);
 		checkForLayerIsUpToDate(app.activeDocument.activeLayer.name);
 		canLinkIt.updateSelected();
@@ -313,12 +345,55 @@ function testSizeOfUpdatedImage() {
 
 function testCollapsingDotDotSlashes() {
 	
-	assertEquals("test/lasa", canLinkIt.removeExtraDotDotSlashesFromFilename("test/lasa"),"No slashes to resolve, so it should stay the same.");
-	assertEquals("test/MyFile.psd", canLinkIt.removeExtraDotDotSlashesFromFilename("test/lasa/../MyFile.psd"),"No slashes to resolve, so it should stay the same.");
-	assertEquals("../File.psd", canLinkIt.removeExtraDotDotSlashesFromFilename("../File.psd"),"No path at start to remove, so it will stay the same.");
-	assertEquals("/MyFile.psd", canLinkIt.removeExtraDotDotSlashesFromFilename("removeme/../MyFile.psd"),"No path at start to remove, so it will stay the same.");
-	assertEquals("lar/MyFile.psd", canLinkIt.removeExtraDotDotSlashesFromFilename("lar/removeme/../MyFile.psd"),"No path at start to remove, so it will stay the same.");
-	assertEquals("lar/MyFile.psd", canLinkIt.removeExtraDotDotSlashesFromFilename("lar/removeme/andme/../../MyFile.psd"),"No path at start to remove, so it will stay the same.");
+	assertEquals("test/lasa", linksXMP.removeExtraDotDotSlashesFromFilename("test/lasa"),"No slashes to resolve, so it should stay the same.");
+	assertEquals("test/MyFile.psd", linksXMP.removeExtraDotDotSlashesFromFilename("test/lasa/../MyFile.psd"),"No slashes to resolve, so it should stay the same.");
+	assertEquals("../File.psd", linksXMP.removeExtraDotDotSlashesFromFilename("../File.psd"),"No path at start to remove, so it will stay the same.");
+	assertEquals("/MyFile.psd", linksXMP.removeExtraDotDotSlashesFromFilename("removeme/../MyFile.psd"),"No path at start to remove, so it will stay the same.");
+	assertEquals("lar/MyFile.psd", linksXMP.removeExtraDotDotSlashesFromFilename("lar/removeme/../MyFile.psd"),"No path at start to remove, so it will stay the same.");
+	assertEquals("lar/MyFile.psd", linksXMP.removeExtraDotDotSlashesFromFilename("lar/removeme/andme/../../MyFile.psd"),"No path at start to remove, so it will stay the same.");
+
+
+}
+
+function testBrokenLink() {
+	// TODO -- not complete yet!
+		try {
+		app.open(testFileWithBrokenLink);
+		
+		var layerName="BrokenLink";
+		var layerRef = makeLayerNamedActive(layerName);
+		
+		var xml = canLinkIt.getActiveLayerInfo("1");
+		// Check to make sure it's linked, but is out of date, and is not valid.
+		assertXMLHasProperty("uri",originalRootPath+endOfPath+"Files/BrokenLink/BrokenLink.psd",xml,
+			"testMovedDocument: The XML should include a property with the uri being the path to the file, but it' doesn't.\nxml="+xml);
+		assertXMLHasProperty("relativeURI", "BrokenLink.psd",xml,
+			"testMovedDocument: The XML should include a property with the relativeURI being the relative path to the file, but it' doesn't.\nxml="+xml);
+
+
+		checkForXMLBasics(xml);
+		assertXMLHasProperty(XMPObjectTags.HAS_DOC,true, xml, 
+			"checkForLayerNeedToBeUpdated: The XML should include a property, "+XMPObjectTags.HAS_DOC+"=true.");
+		assertXMLHasNoProperty("unsaved",xml,"checkForLayerNeedToBeUpdated: The XML should not include a property, unsaved.");
+		assertXMLHasProperty("isSO",true,xml,"checkForLayerNeedToBeUpdated: The XML should include a property, isSO=true.");
+		assertXMLHasProperty("hasLink",true,xml,"checkForLayerNeedToBeUpdated: The XML should include a property, hasLink=true.");
+		assertXMLHasProperty("isValid",false,xml, "checkForLayerNeedToBeUpdated: The XML should include a property, isValid=true.");
+		assertXMLHasProperty("layerName",layerName,xml,
+			"checkForLayerNeedToBeUpdated: The XML should include a property, layerName="+layerName+", but it' doesn't.\nxml="+xml);
+		assertXMLHasProperty("isCurrent",false,xml, "checkForLayerNeedToBeUpdated: The XML should include a property, isCurrent=false.");
+		assertEquals(true, xml.indexOf("<property id=\"uri\"><string>")>-1,
+			"checkForLayerNeedToBeUpdated: The XML should include a property with the uri being the path to the file, but it' doesn't.\nxml="+xml);
+		assertEquals(true, xml.indexOf("<property id=\"relativeURI\"><string>")>-1,
+			"checkForLayerNeedToBeUpdated: The XML should include a property with the relativeURI being the relative path to the file, but it' doesn't.\nxml="+xml);	
+
+
+		//logIt(xml);
+		
+		app.activeDocument.close(SaveOptions.DONOTSAVECHANGES);
+	} catch (e) {
+		alert("Uncaught Error Message in TestCanLinkIt.jsx/testMovedDocument(): "+e);
+	}	
+
 
 
 }
@@ -326,7 +401,6 @@ function testCollapsingDotDotSlashes() {
 /**************************************
 	* Run the unit tests below
 	*/
-// The next line will show up in the JavaScript Console in ExtendScript Toolkit, so it works to check on errors:
 closeAllDocuments();
 
 testNoDocumentsOpen();
@@ -337,9 +411,10 @@ testMovedDocument();
 testUpdateAllLinks();
 testNewLinksPieces();
 testNewLink();
+testNewLinkWithSlices();
 testSizeOfUpdatedImage();
 testCollapsingDotDotSlashes();
-
+testBrokenLink();
 // The next line will show up in the JavaScript Console in ExtendScript Toolkit, so it works to check on errors:
 $.writeln(errorMessages+"\n"+
 "TestCanLinkIt.jsx tests are complete. Total errors: "+errorCount);

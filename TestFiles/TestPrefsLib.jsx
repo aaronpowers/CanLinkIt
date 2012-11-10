@@ -74,6 +74,5 @@ function testPrefs1() {
 
 testPrefs1();
 
-// The next line will show up in the JavaScript Console in ExtendScript Toolkit, so it works to check on errors:
-errorMessages+"\n\n"+
-"Prefs tests complete. Total errors: "+errorCount;
+$.writeln(errorMessages+"\n"+
+"PrefsLib.jsx tests are complete. Total errors: "+errorCount);

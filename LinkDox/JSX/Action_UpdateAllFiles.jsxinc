@@ -1,0 +1,100 @@
+﻿/*********************************************
+Copyright 2011 Aaron Powers
+All Rights Reserved
+
+Action_UpdateAllFiles.jsxinc
+*/
+#target photoshop
+// Right now this is the only file that depends on FileLib.jsx. If that changes, it should be included in CanLinkIt.jsx to avoid duplication in the includes.
+#include "FileLib.jsx"
+
+var LAST_FOLDER_FOR_UPDATE_ALL_FILES_PREF="LastUpdateAllFilesFolder";
+
+function Action_UpdateAllFiles() {
+}
+
+Action_UpdateAllFiles.updateAllFiles=function() {
+	// First, ask the user what directory to update.
+	// Unfortunately, the folder browser tends to be a bit annoying to use and browse, so let's try to get some reasonable defaults to help the user out the most.
+	var lastFolder=canLinkIt.prefs.get(LAST_FOLDER_FOR_UPDATE_ALL_FILES_PREF);
+	$.writeln("lastFolder is: "+lastFolder);
+	if (lastFolder!=null && lastFolder.length>0) {
+		// okay, let's start with this folder.
+		var updateFolder = new Folder(lastFolder);
+		if (updateFolder.exists) {
+			var updateFolder = updateFolder.selectDlg('Select the folder you would like to update.');
+			if (updateFolder!=null)
+				Action_UpdateAllFiles.updateAllFilesIn(updateFolder);
+			return;
+		}
+	}
+	
+	if (app.documents.length>0) {
+		// Okay, a document is open, so we can default to the path of this document (much easier than browsing to a deep folder).
+		var updateFolder = app.activeDocument.path.selectDlg('Select the folder you would like to update.');
+		if (updateFolder!=null)
+			Action_UpdateAllFiles.updateAllFilesIn(updateFolder);
+		return;
+	}
+	if (app.recentFiles.length>0) {
+		// There are no files open, but there are files in the recent folder. Let's start there as a default rather than the root directory.
+		var updateFolder = app.recentFiles[0].parent.selectDlg('Select the folder you would like to update.');
+		if (updateFolder!=null)
+			Action_UpdateAllFiles.updateAllFilesIn(updateFolder);
+		return;
+	}
+	
+	// No documents are open. Just ask for a folder, no defaults.
+	// this is a poor kind of dialog that doesn't allow pasting directory names in... We should be asking the user to select a folder but it's not allowed in the regular dialogs.
+	var updateFolder = Folder.selectDialog('Select the folder you would like to update.');
+	if (updateFolder!=null)
+		Action_UpdateAllFiles.updateAllFilesIn(updateFolder);
+	return;	
+}
+
+
+
+Action_UpdateAllFiles.updateAllFilesIn =function(updateFolder) {
+	var loopMore = true;
+	while (loopMore) {
+		loopMore = Action_UpdateAllFiles.updateAllFilesIn_RecursiveCall(updateFolder);
+		// Now, if we updated a file, that may mean that other files in here depend on it.
+		// If so, we need to update those files again.
+		// TODO we could do this in a much smarter way than this.
+	}
+	// Okay, seems to be a success. Save this folder so the user can get this folder by default next time.
+	canLinkIt.prefs.set(LAST_FOLDER_FOR_UPDATE_ALL_FILES_PREF, updateFolder.fullName);
+}
+
+
+Action_UpdateAllFiles.updateAllFilesIn_RecursiveCall=function(updateFolder) {
+	var children = updateFolder.getFiles();
+	//$.writeln("Folder class is: "+getClassName(updateFolder));
+	//$.writeln("Folder name is: "+updateFolder.fullName);
+	var updatedSomething = false;
+	for (var i=0; i<children.length; i++) {
+		if (getClassName(children[i])=="Folder") {
+			// recurse!
+			if (children[i].name=="BrokenLink") {
+				// Ignore this folder, because it's going to ask the user for input because the link is broken.
+			} else if (Action_UpdateAllFiles.updateAllFilesIn_RecursiveCall(children[i]))
+				updatedSomething=true;
+			//$.writeln(children[i]+" class is Folder");
+		} else {
+			//$.writeln(children[i]+" class is File");
+			// This is a file.
+			if (PsdLib.isLinkableFromFile(children[i].name)) {
+				// This is a photoshop file that should be updated.
+				// TODO check if this file is already open. If it is, we don't want to close it.
+				app.open(children[i]);
+				if (canLinkIt.updateAll()>0) {
+					updatedSomething=true;
+					app.activeDocument.close(SaveOptions.SAVECHANGES);
+				} else {
+					app.activeDocument.close(SaveOptions.DONOTSAVECHANGES);
+				}
+			}
+		}
+	}
+	return updatedSomething;
+}
